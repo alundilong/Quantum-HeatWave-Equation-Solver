@@ -58,7 +58,7 @@ def plot_multi(data, idx, shots=None, colors=['black', 'red', 'blue']):
     bcs, nx = settings['bcs'], settings['nx']
     tau_lim = (0, 1e-8)
     mu_lim = (0, 1e-3)
-    field_lim = (0, 1.2)
+    field_lim = (-1.2, 1.2)
     digits = 4
 
     solv_list = []
@@ -134,7 +134,7 @@ def plot_multi(data, idx, shots=None, colors=['black', 'red', 'blue']):
                                 color=colors[j])
         ax.set_title(f"t = {times[t]:.{digits}f} s")
         ax.set_xlabel("x [m]")
-        ax.set_ylabel("u [$\\mu$ m]")
+        ax.set_ylabel("u [K]")
         ax.set_ylim(*field_lim)
         if i == 0:
             ax.legend(loc='lower right')
