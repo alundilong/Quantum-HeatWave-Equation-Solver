@@ -244,8 +244,10 @@ class Solver1DEXP(Solver1D):
             Dict[str, Any]: A dictionary containing the field data and other results.
         """
         self.logger.info('Solving matrix exponential.')
+
+        n = self.tf.h_embed.shape[0] // 2  # Get N (half the size of H_embed)
         self.st.states = np.array([
-            np.real(scipy.linalg.expm(time * -1j * self.tf.h) @ self.st.get_state(0))
+            np.real(scipy.linalg.expm(time * -1j * self.tf.h_embed)[:n,:n] @ self.st.get_state(0))
             for time in self.times])
         self.logger.info('Matrix exponential solved.')
 
