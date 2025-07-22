@@ -24,7 +24,7 @@
 
 # -------- IMPORTS --------
 # Own modules
-from simulation.experiment import ForwardExperiment1D
+from simulation.experiment_cv import ForwardExperiment1D
 from utility.distributions import (spike, ricker, gaussian, raised_cosine,
                                     sinc, homogeneous, exponential, polynomial)
 
@@ -40,34 +40,34 @@ def main() -> None:
     # Set Experiment Parameters
     nx = 7
     parameters = {
-        'dx': 1,                                        # Grid spacing
-        'nx': nx,                                       # Number of grid points
-        'dt': 0.0001,                                   # Time stepping
-        'nt': 19,                                       # Number of time steps
-        'order': 1,                                     # Finite-difference order
-        'bcs': {'left': 'DBC', 'right': 'DBC'},         # Boundary conditions
-        'mu': raised_cosine(3e10, nx+1, nx, 6, 1e10),   # Elastic modulus distribution
-        'rho': raised_cosine(2e3, nx, nx-1, 6, 2e3),    # Density distribution
-        'u': spike(1, nx, nx//2+1),                     # Initial positions
-        'v': homogeneous(0, nx),                        # Initial velocities
+        'dx': 1e-3,                                             # Grid spacing
+        'nx': nx,                                               # Number of grid points
+        'dt': 0.0001,                                           # Time stepping
+        'nt': 19,                                               # Number of time steps
+        'order': 1,                                             # Finite-difference order
+        'bcs': {'left': 'DBC', 'right': 'DBC'},                 # Boundary conditions
+        'alpha': raised_cosine(1.11e-4, nx+1, nx, 6, 1.11e-4),  # thermal diffusivity distribution
+        'tau': raised_cosine(1e-9, nx, nx-1, 6, 1e-9),          # lagging distribution
+        'u': spike(1, nx, nx//2+1),                             # Initial temperature
+        'v': homogeneous(0, nx),                                # Initial temperature change rate
         'backend': {
-            'synthesis': 'MatrixExponential',           # Time Evolution Synthesis Method
-            'batch_size': 100,                          # Circuit Batch Size
-            'fitter': 'cvxpy_gaussian',                 # State Tomography fitter
-            'backend': 'ibmq_qasm_simulator',           # Cloud backend name
-            'shots': 1000,                              # Number of circuit samples
-            'optimization': 3,                          # Circuit optimization level
-            'resilience': 1,                            # Circuit resilience level
-            'seed': 0,                                  # Transpilation seed
-            'local_transpilation': False,               # Local transpilation
-            'method': 'statevector',                    # Classical simulation method
-            'fake': None,                               # Fake backend model (Currently not supported)
+            'synthesis': 'MatrixExponential',                   # Time Evolution Synthesis Method
+            'batch_size': 100,                                  # Circuit Batch Size
+            'fitter': 'cvxpy_gaussian',                         # State Tomography fitter
+            'backend': 'ibmq_qasm_simulator',                   # Cloud backend name
+            'shots': 1000,                                      # Number of circuit samples
+            'optimization': 3,                                  # Circuit optimization level
+            'resilience': 1,                                    # Circuit resilience level
+            'seed': 0,                                          # Transpilation seed
+            'local_transpilation': False,                       # Local transpilation
+            'method': 'statevector',                            # Classical simulation method
+            'fake': None,                                       # Fake backend model (Currently not supported)
             }
         }
 
     # Define solvers
-    solvers=['ode','local']
-    solvers_idx=[0,1]
+    solvers=['ode']
+    solvers_idx=[0]
     for s in solvers:
         experiment.add_solver(s, **parameters)
 
