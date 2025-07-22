@@ -51,8 +51,8 @@ class ThermalMediumProcessor(ProcessorBase):
     """
     Class that processes the medium properties of a quantum experiment.
     """
-    def __init__(self, n_mu: int, n_rho: int) -> None:
-        super().__init__(n_mu, n_rho, 1) # Time-invariant medium
+    def __init__(self, n_alpha: int, n_tau: int) -> None:
+        super().__init__(n_alpha, n_tau, 1) # Time-invariant medium
 
     def set_alpha(self, values: list) -> None:
         """
@@ -83,13 +83,13 @@ class ThermalMediumProcessor(ProcessorBase):
 
     def get_dict(self) -> dict:
         """
-        Get the elastic modulus and density values of the medium.
+        Get the thermal diffusivity and lagging values of the medium.
         
         Returns:
-            dict: The elastic modulus and density values of the medium.
+            dict: The thermal diffusivity and lagging values of the medium.
         """
-        return {'mu': self.values_1,
-                'rho': self.values_2}
+        return {'alpha': self.values_1,
+                'tau': self.values_2}
 
 class MediumProcessor(ProcessorBase):
     """
