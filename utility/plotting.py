@@ -30,7 +30,7 @@ from matplotlib.ticker import MaxNLocator
 import seaborn as sns
 
 # -------- SETTINGS --------
-plt.rcParams['font.family'] = 'Times New Roman'
+#plt.rcParams['font.family'] = 'Times New Roman'
 
 # -------- CONSTANTS --------
 ENUMS = ['a.)', 'b.)', 'c.)', 'd.)', 'e.)', 'f.)']
