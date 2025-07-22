@@ -35,7 +35,7 @@ import scipy
 from scipy.integrate import solve_ivp
 
 # Own modules
-from utility.transform import FDTransform1DA
+from utility.transform_cv import FDTransform1DA
 from utility.processing import ThermalMediumProcessor, StateProcessor
 from utility.backends import CloudBackend, LocalBackend, BackendService
 from utility.circuits import CircuitGen1DA
@@ -138,8 +138,8 @@ class Solver1D:
         transforming the state space based on the provided medium parameters.
 
         Args:
-            alpha (np.ndarray): An array of µ values representing the medium shear modulus.
-            tau (np.ndarray): An array of ρ values representing the medium density.
+            alpha (np.ndarray): An array of alpha values representing the medium thermal diffusivity.
+            tau (np.ndarray): An array of ρ values representing the medium lagging time.
             dx (float): The spatial step size.
             nx (int): The number of spatial steps.
             order (int): The order of the finite difference scheme.
@@ -210,6 +210,46 @@ class Solver1DODE(Solver1D):
         self.logger.info('ODE solved.')
 
         _ = [self.st.inverse_state(i, self.tf.inv_sqrt_m)
+         for i in range(len(self.times))]
+        self.logger.info('States inverse-transformed.')
+
+        self.data['field'] = self.st.get_dict()
+        return self.data
+
+class Solver1DEXP(Solver1D):
+    """
+    A subclass of Solver1D for solving with a classical
+        Matrix exponential time evolution solver.
+
+    Inherits from Solver1D.
+
+    Args:
+        logger (object): A logging instance to record the process and errors.
+        **kwargs: Arbitrary keyword arguments for configuration.
+    """
+
+    def __init__(self, base_data: object, logger: object, **kwargs) -> None:
+        super().__init__(base_data, logger, **kwargs)
+        self.st = StateProcessor(self.kwargs['nx'], self.kwargs['nt'], shift=1)
+        self.st.set_u(self.kwargs['u'], 0)
+        self.st.set_v(self.kwargs['v'], 0)
+        self.st.forward_state(0, self.tf.t @ self.tf.sqrt_m)
+        self.logger.info('Initial state forward-transformed.')
+
+    def run(self) -> Dict[str, Any]:
+        """
+        Runs the matrix exponential solver and processes the results.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing the field data and other results.
+        """
+        self.logger.info('Solving matrix exponential.')
+        self.st.states = np.array([
+            np.real(scipy.linalg.expm(time * -1j * self.tf.h) @ self.st.get_state(0))
+            for time in self.times])
+        self.logger.info('Matrix exponential solved.')
+
+        _ = [self.st.inverse_state(i, self.tf.inv_sqrt_m @ self.tf.inv_t)
          for i in range(len(self.times))]
         self.logger.info('States inverse-transformed.')
 
@@ -293,3 +333,171 @@ class Solver1DLocal(Solver1D):
         self.data['field'] = self.st.get_dict()
         return self.data
 
+class Solver1DCloud(Solver1D):
+    """
+    A subclass of Solver1D for cloud-based quantum computing simulations.
+
+    Inherits from Solver1D and adds specific methods for handling cloud-based simulations.
+
+    Args:
+        logger (object): A logging instance to record the process and errors.
+        **kwargs: Arbitrary keyword arguments for configuration.
+    """
+
+    def __init__(self, base_data: object, logger: object, **kwargs) -> None:
+        super().__init__(base_data, logger, **kwargs)
+        self.st = StateProcessor(self.kwargs['nx'], self.kwargs['nt'], shift=1)
+        self.st.set_u(self.kwargs['u'], 0)
+        self.st.set_v(self.kwargs['v'], 0)
+        self.st.forward_state(0, self.tf.t @ self.tf.sqrt_m)
+        self.logger.info('Initial state transformed.')
+
+    def run(self) -> Dict[str, Any]:
+        """
+        Runs the cloud-based solver, including quantum circuit generation,
+        execution, and tomography.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing the field data and other results.
+        """
+
+        self.logger.info('Initializing backend.')
+        backend = CloudBackend(self.logger,
+                               backend=self.kwargs['backend']['backend'],
+                               fake=self.kwargs['backend']['fake'],
+                               seed=self.kwargs['backend']['seed'],
+                               shots=self.kwargs['backend']['shots'],
+                               optimization=self.kwargs['backend']['optimization'],
+                               resilience=self.kwargs['backend']['resilience'],
+                               local_transpilation = self.kwargs['backend']['local_transpilation'])
+
+        sampler, _ = backend.get_sampler()
+        self.logger.info('Backend initialized.')
+
+        self.logger.info('Generating circuits.')
+        circuit_gen = CircuitGen1DA(self.logger,
+                                    backend.fake_backend
+                                    if backend.fake_backend
+                                    else backend.backend)
+        circuit_groups = circuit_gen.tomography_circuits(
+            self.st.get_state(0),
+            self.tf.h,
+            self.times[1:],
+            self.kwargs['backend']['synthesis'],
+            self.kwargs['backend']['batch_size'],
+            self.kwargs['backend']['optimization'],
+            self.kwargs['backend']['seed'],
+            self.kwargs['backend']['local_transpilation'])
+
+        self.logger.info(f'Submitting {len(circuit_groups)} jobs to backend.')
+        jobs, job_ids = [], []
+        for i, circuits in enumerate(circuit_groups):
+            job_transmitted = False
+            while not job_transmitted:
+                try:
+                    job = sampler.run(circuits)
+                    job_transmitted = True
+                except ConnectionError as e:
+                    self.logger.warning(f'Job transmission {i} failed with error {e}.\
+                                        Retrying in 5 seconds.')
+                    sleep(5)
+            self.logger.info(f'Job {i} submitted with job_id {job.job_id()}.')
+            jobs.append(job)
+            job_ids.append(job.job_id())
+        self.logger.info('Jobs submitted.')
+        _save_jobids(job_ids, self.base_data/f'jobids_{self.idx}.json')
+        _wait_for_completion(jobs, self.logger)
+        result_groups = [job.result() for job in jobs]
+        self.logger.info('Jobs completed.')
+
+        self.logger.info('Running tomography.')
+        tomo = TomographyReal(self.logger, self.kwargs['backend']['fitter'])
+        observables = list(product("ZX", repeat=int(np.log2(self.tf.h.shape[0]))))
+        self.logger.debug(f'Observables: {observables}')
+        states_raw = tomo.run_tomography(result_groups, observables, self.times[1:])
+        self.logger.info('Tomography completed.')
+
+        self.st.states = np.real(parallel_transport(states_raw, self.st.get_state(0)))
+        self.logger.info('State polarization corrected.')
+        _ = [self.st.inverse_state(i, self.tf.inv_sqrt_m @ self.tf.inv_t)
+         for i in range(1, len(self.times))]
+        self.logger.info('States inverse-transformed.')
+
+        self.data['field'] = self.st.get_dict()
+        return self.data
+
+    def load(self) -> Dict[str, Any]:
+        """
+        Loads quantum computation jobs from IBM Quantum using provided job IDs,
+        processes the results, and updates the state processor.
+
+        This method retrieves jobs from the IBM Quantum service, waits for their completion, and 
+        then runs quantum state tomography on the results. It applies corrections to the states and 
+        performs inverse transformations to get the final state data.
+
+        Args:
+            job_ids (List[str]): A list of job IDs for retrieval from IBM Quantum.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing the processed field data.
+        """
+        self.logger.info('Loading jobs from IBM Quantum.')
+        job_ids = json.load(open(self.base_data/f'jobids_{self.idx}.json',
+                                 'r', encoding='utf8'))
+        service = BackendService().service
+        jobs = [service.job(job_id) for job_id in job_ids]
+        _wait_for_completion(jobs, self.logger)
+        result_groups = [job.result() for job in jobs]
+        self.logger.info('Jobs completed.')
+
+        self.logger.info('Running tomography.')
+        tomo = TomographyReal(self.logger, self.kwargs['backend']['fitter'])
+        observables = list(product("ZX", repeat=int(np.log2(self.tf.h.shape[0]))))
+        self.logger.debug(f'Observables: {observables}')
+        states_raw = tomo.run_tomography(result_groups, observables, self.times[1:])
+        self.logger.info('Tomography completed.')
+
+        self.st.states = np.real(parallel_transport(states_raw, self.st.get_state(0)))
+        self.logger.info('State polarization corrected.')
+        _ = [self.st.inverse_state(i, self.tf.inv_sqrt_m @ self.tf.inv_t)
+         for i in range(1, len(self.times))]
+        self.logger.info('States inverse-transformed.')
+
+        self.data['field'] = self.st.get_dict()
+        return self.data
+
+# -------- FUNCTIONS --------
+def _wait_for_completion(jobs: List[object], logger: object, sleep_time: float = 10) -> None:
+    """
+    Waits for a list of jobs to complete.
+
+    Args:
+        jobs (List[object]): A list of jobs to wait for.
+        logger (object): A logger to record the status of the jobs.
+    """
+
+    all_completed = False
+    while not all_completed:
+        sleep(sleep_time)
+        status = [job.status().name for job in jobs]
+        logger.debug(f"Jobs status: {status}")
+        if 'ERROR' in status:
+            logger.debug(f"Fatal error occurred: {[job.status() for job in jobs]}")
+            raise RuntimeError('Runtime error in simulating the quantum circuit.\
+                This might be a problem of your qiskit installation.')
+        completed = [job.status().name == 'DONE' for job in jobs]
+        logger.info(f"Jobs completed: {sum(completed)} | {len(jobs)}")
+        all_completed = all(completed)
+
+def _save_jobids(job_ids: List[str], path: str, indent: int = 4,
+                 encoding: str = 'utf8') -> None:
+    """
+    Saves a list of job IDs to a JSON file.
+
+    Args:
+        job_ids (List[str]): A list of job IDs to save.
+        path (str): The path to save the job IDs to.
+    """
+
+    with open(path, 'w', encoding=encoding) as f:
+        json.dump(job_ids, f, indent=indent)
