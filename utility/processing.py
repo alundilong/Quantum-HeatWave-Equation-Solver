@@ -47,6 +47,50 @@ class ProcessorBase:
     def _get_vals(self, index) -> tuple[np.ndarray, np.ndarray]:
         return self.values_1[index], self.values_2[index]
 
+class ThermalMediumProcessor(ProcessorBase):
+    """
+    Class that processes the medium properties of a quantum experiment.
+    """
+    def __init__(self, n_mu: int, n_rho: int) -> None:
+        super().__init__(n_mu, n_rho, 1) # Time-invariant medium
+
+    def set_alpha(self, values: list) -> None:
+        """
+        Set the thermal diffusivity  values of the medium.
+        
+        Args:
+            values (list): The thermal diffusivity values of the medium.
+        """
+        self._set_val1(values, 0)
+
+    def set_tau(self, values: list) -> None:
+        """
+        Set the lagging values of the medium.
+        
+        Args:
+            values (list): The delay values of the medium.
+        """
+        self._set_val2(values, 0)
+
+    def get_medium(self) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Get the thermal diffusivity modulus and lagging values of the medium.
+        
+        Returns:
+            tuple([np.ndarray, np.ndarray]): The elastic modulus and density values of the medium.
+        """
+        return self._get_vals(0)
+
+    def get_dict(self) -> dict:
+        """
+        Get the elastic modulus and density values of the medium.
+        
+        Returns:
+            dict: The elastic modulus and density values of the medium.
+        """
+        return {'mu': self.values_1,
+                'rho': self.values_2}
+
 class MediumProcessor(ProcessorBase):
     """
     Class that processes the medium properties of a quantum experiment.
