@@ -66,12 +66,19 @@ def main() -> None:
         }
 
     # Define solvers
-    experiment.add_solver('ode', **parameters)
-    experiment.add_solver('exp', **parameters)
-    experiment.add_solver('local', **parameters)
+    solvers=['ode','exp','local']
+    solvers_idx=[0,1,2]
+    for s in solvers:
+        experiment.add_solver(s, **parameters)
 
     # Run experiment
     _ = experiment.run()
+
+    plotparameters = {
+            'idx': [0,2,10,16,18]
+            }
+    
+    experiment.plot(mode='multi',solvers=solvers_idx,**plotparameters)
 
 # -------- SCRIPT --------
 if __name__ == '__main__':
