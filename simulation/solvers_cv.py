@@ -38,7 +38,7 @@ from scipy.integrate import solve_ivp
 from utility.transform_cv import FDTransform1DA
 from utility.processing import ThermalMediumProcessor, StateProcessor
 from utility.backends import CloudBackend, LocalBackend, BackendService
-from utility.circuits import CircuitGen1DA
+from utility.circuits_cv import CircuitGen1DA
 from utility.tomography import TomographyReal, parallel_transport
 
 # -------- CLASSES --------
@@ -304,7 +304,7 @@ class Solver1DLocal(Solver1D):
         circuit_gen = CircuitGen1DA(self.logger, backend.fake_backend)
         self.circuit_groups = circuit_gen.tomography_circuits(
             self.st.get_state(0),
-            self.tf.h,
+            self.tf.h_embed,
             self.times[1:],
             self.kwargs['backend']['synthesis'],
             self.kwargs['backend']['batch_size'],
