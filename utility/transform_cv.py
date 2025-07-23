@@ -79,6 +79,8 @@ class FDTransform1DA:
         # Define hamiltonian
         self.h_tilde = self.get_h_tilde(scale(self.u, cols=1), self.get_z(self.nx+1), scale(inv_m, rows=1, cols=1))
 
+        self.h_test = self.get_h_test(scale(self.u, cols=1), self.get_z(self.nx+1))
+
         self.h_embed = self.get_embed_hamiltonian(self.h_tilde)
 
     def get_z(self, length: int) -> np.ndarray:
@@ -247,6 +249,19 @@ class FDTransform1DA:
         """
         return np.block([[z, 1j*u],[-1j*u.T, -1j*inv_m]])
 
+    def get_h_test(self, u: np.ndarray, z: np.ndarray) -> np.ndarray:
+        """
+        Calculates the Hermitian hamiltonian matrix.
+        
+        Args:
+            u (np.ndarray): The Cholesky decomposition matrix.
+            z (np.ndarray): The zero matrix.
+            
+        Returns:
+            np.ndarray: The hamiltonian matrix.
+        """
+        return np.block([[z, 1j*u],[-1j*u.T, z]])
+
     def get_embed_hamiltonian(self, h_tilde: np.ndarray) -> np.ndarray:
         """
         Embeds a non-Hermitian matrix tilde{H} into a Hermitian matrix (H_{embed}.
@@ -265,8 +280,8 @@ class FDTransform1DA:
     
         # Construct \(H_{\text{embed}}\) using block structure
         h_embed = np.block([
-            [z,             h_tilde.conj().T],  # Top row: 0 and \(\tilde{H}^\dagger\)
-            [h_tilde,       z]                  # Bottom row: \(\tilde{H}\) and 0
+            [z,             h_tilde],   # Top row: 0 and \(\tilde{H}^\dagger\)
+            [h_tilde.conj().T,       z] # Bottom row: \(\tilde{H}\) and 0
         ])
     
         return h_embed
@@ -279,6 +294,7 @@ class FDTransform1DA:
             dict: The transformation matrices.
         """
         return {'h_tilde': self.h_tilde,
+                'h_test': self.h_test,
                 'h_embed': self.h_embed,
                 't': self.t,
                 'inv_t': self.inv_t,
