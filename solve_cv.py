@@ -48,7 +48,7 @@ def main() -> None:
     nt = 199
 
     t0 = L*L/alpha
-    eps = tau*alpha/L
+    eps = tau*alpha/L/L
 
     experiment.logger.info(f'dimensionless t0 = {t0:.2e}')
     experiment.logger.info(f'dimensionless eps = {eps:.2e}')
