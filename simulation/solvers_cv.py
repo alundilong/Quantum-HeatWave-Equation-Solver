@@ -258,16 +258,18 @@ class Solver1DEXP(Solver1D):
             Dict[str, Any]: A dictionary containing the field data and other results.
         """
         self.logger.info('Solving matrix exponential.')
-        initial_state = self.st.get_state(0)
+        initial_state = self.st.get_state(0)/np.sqrt(2.)
         N = len(initial_state)
         Psi_0 = np.zeros(2 * N, dtype=complex)
         Psi_0[:N] = initial_state  # Upper half is physical state
+        Psi_0[N:] = initial_state  # Bottom half is physical state
         self.st.states = np.array([
             np.real(scipy.linalg.expm(time * -1j * self.tf.h_embed) @ Psi_0)
             for time in self.times])[:,:N]
         self.logger.info(f'Shape of st.states: {self.st.states.shape}')
         self.logger.info('Matrix exponential solved.')
 
+        self.st.norm = self.st.norm*np.sqrt(2.0)
         _ = [self.st.inverse_state(i, self.tf.inv_sqrt_m @ self.tf.inv_t)
          for i in range(len(self.times))]
         self.logger.info('States inverse-transformed.')
