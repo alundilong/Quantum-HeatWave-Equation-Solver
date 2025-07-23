@@ -80,6 +80,16 @@ class Solver1D:
         self.logger.info('Calculating Transformation and Hamiltonian.')
         self.tf = self.get_transform(kwargs['mu'], kwargs['rho'], kwargs['dx'],
                                         kwargs['nx'], kwargs['order'], kwargs['bcs'])
+        self.logger.info('---S-REPORT---'*3)
+        self.logger.info(f'norm of D: {np.linalg.norm(self.tf.d):.2e}')
+        self.logger.info(f'norm of M^{-1/2}: {np.linalg.norm(self.tf.inv_sqrt_m):.2e}')
+        self.logger.info(f'norm of U: {np.linalg.norm(self.tf.u):.2e}')
+        self.logger.info(f'norm of K: {np.linalg.norm(self.tf.k):.2e}')
+        self.logger.info(f'norm of Q: {np.linalg.norm(self.tf.q):.2e}')
+        self.logger.info(f'norm of T: {np.linalg.norm(self.tf.t):.2e}')
+        self.logger.info(f'norm of T^{-1}: {np.linalg.norm(self.tf.inv_t):.2e}')
+        self.logger.info(f'norm of H: {np.linalg.norm(self.tf.h):.2e}')
+        self.logger.info('---E-REPORT---'*3)
         self.data['transform'] = self.tf.get_dict()
         self.logger.info('Calculation completed.')
 
