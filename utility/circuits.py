@@ -94,6 +94,11 @@ class CircuitGen1DA:
         num_qubits = int(np.log2(hamiltonian.shape[0]))
         observables = list(product("ZX", repeat=num_qubits))
         synthesis = SYNTHESIS[synthesis]
+
+        hamiltonian_norm = np.linalg.norm(hamiltonian)
+        self.logger.info(f"Number of quibits = {num_qubits}.")
+        self.logger.info(f"Hamiltonian norm = {hamiltonian_norm:.2e}.")
+
         op = SparsePauliOp.from_operator(Operator(hamiltonian))
 
         qr = QuantumRegister(num_qubits)
@@ -102,6 +107,7 @@ class CircuitGen1DA:
 
         self.logger.debug(initial_state)
         n = len(initial_state)
+        self.logger.info(f"Length of initial state = {n}.")
         if (len(np.nonzero(initial_state)[0]) == 2) and \
         np.all(np.nonzero(initial_state)[0] == [n//4, n//4+1]):
             self.logger.info('Preparing efficient initial state (central spike).')

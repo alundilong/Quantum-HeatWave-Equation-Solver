@@ -39,6 +39,10 @@ def main() -> None:
 
     # Set Experiment Parameters
     nx = 7
+    
+    mu = 3e10
+    rho = 2e3
+
     parameters = {
         'dx': 1,                                        # Grid spacing
         'nx': nx,                                       # Number of grid points
@@ -46,8 +50,8 @@ def main() -> None:
         'nt': 19,                                       # Number of time steps
         'order': 1,                                     # Finite-difference order
         'bcs': {'left': 'DBC', 'right': 'DBC'},         # Boundary conditions
-        'mu': raised_cosine(3e10, nx+1, nx, 6, 1e10),   # Elastic modulus distribution
-        'rho': raised_cosine(2e3, nx, nx-1, 6, 2e3),    # Density distribution
+        'mu': raised_cosine(mu, nx+1, nx, 6, mu),   # Elastic modulus distribution
+        'rho': raised_cosine(rho, nx, nx-1, 6, rho),    # Density distribution
         'u': spike(1, nx, nx//2+1),                     # Initial positions
         'v': homogeneous(0, nx),                        # Initial velocities
         'backend': {
