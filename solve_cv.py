@@ -21,6 +21,8 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 }
 """
+import argparse
+import json
 
 # -------- IMPORTS --------
 # Own modules
@@ -34,18 +36,27 @@ def main() -> None:
     Runs the quantum 1D CV equation solver.
     """
 
+    # Parse input arguments
+    parser = argparse.ArgumentParser(description="Run 1D CV equation solver with config file")
+    parser.add_argument("config_path", type=str, help="Path to the configuration JSON file")
+    args = parser.parse_args()
+
+    # Load configuration from JSON
+    with open(args.config_path, 'r') as f:
+        config = json.load(f)
+
     # Create experiment
     experiment = ForwardExperiment1D(verbose=2)
 
-    # Set Experiment Parameters
-    n = 3
-    nx = 2**n - 1
-    alpha = 1.11e-4
-    tau = 1e-12
-    L = 7e-9
-    dx = L/nx
-    dt = 1e-10
-    nt = 199
+    # Set parameters from config
+    n = config["n"]
+    alpha = config["alpha"]
+    tau = config["tau"]
+    L = config["L"]
+    dt = config["dt"]
+    nt = config["nt"]
+    nx = 2 ** n - 1
+    dx = L / nx
 
     t0 = L*L/alpha
     eps = tau*alpha/L/L
