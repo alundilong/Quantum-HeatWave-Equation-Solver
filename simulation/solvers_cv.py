@@ -80,6 +80,19 @@ class Solver1D:
         self.logger.info('Calculating Transformation and Hamiltonian.')
         self.tf = self.get_transform(kwargs['alpha'], kwargs['tau'], kwargs['dx'],
                                         kwargs['nx'], kwargs['order'], kwargs['bcs'])
+        self.logger.info('---S-REPORT---'*3)
+        self.logger.info(f'norm of D: {np.linalg.norm(self.tf.d):.2e}')
+        self.logger.info(f'norm of tau^{1/2}: {np.linalg.norm(self.tf.sqrt_m):.2e}')
+        self.logger.info(f'norm of tau^{-1/2}: {np.linalg.norm(self.tf.inv_sqrt_m):.2e}')
+        self.logger.info(f'norm of U: {np.linalg.norm(self.tf.u):.2e}')
+        self.logger.info(f'norm of K: {np.linalg.norm(self.tf.k):.2e}')
+        self.logger.info(f'norm of Q: {np.linalg.norm(self.tf.q):.2e}')
+        self.logger.info(f'norm of T: {np.linalg.norm(self.tf.t):.2e}')
+        self.logger.info(f'norm of T^{-1}: {np.linalg.norm(self.tf.inv_t):.2e}')
+        self.logger.info(f'norm of H_tilde: {np.linalg.norm(self.tf.h_tilde):.2e}')
+        self.logger.info(f'norm of H_test: {np.linalg.norm(self.tf.h_test):.2e}')
+        self.logger.info(f'norm of H_embed: {np.linalg.norm(self.tf.h_embed):.2e}')
+        self.logger.info('---E-REPORT---'*3)
         self.data['transform'] = self.tf.get_dict()
         self.logger.info('Calculation completed.')
 
@@ -205,8 +218,9 @@ class Solver1DODE(Solver1D):
         """
         self.logger.info('Solving ODE.')
         self.st.states = solve_ivp(lambda t, y: self.tf.q @ y, (0, self.times[-1]),
-                                     self.st.get_state(0), t_eval=self.times,
-                                     method='Radau').y.T
+                self.st.get_state(0), 
+                t_eval=self.times,
+                method='Radau').y.T
         self.logger.info('ODE solved.')
 
         _ = [self.st.inverse_state(i, self.tf.inv_sqrt_m)
@@ -307,11 +321,12 @@ class Solver1DLocal(Solver1D):
         N = len(initial_state)
         Psi_0 = np.zeros(2 * N, dtype=complex)
         Psi_0[:N] = initial_state  # Upper half is physical state
+        #Psi_0[N:] = initial_state
 
-        self.logger.info(f'Psi0 Norm: {np.linalg.norm(Psi_0)}')
-        self.logger.info(f'Htest Norm: {np.linalg.norm(self.tf.h_test)}')
-        self.logger.info(f'Htilde Norm: {np.linalg.norm(self.tf.h_tilde)}')
-        self.logger.info(f'Hembed Norm: {np.linalg.norm(self.tf.h_embed)}')
+        self.logger.info(f'Psi0 Norm: {np.linalg.norm(Psi_0):.2e}')
+        self.logger.info(f'Htest Norm: {np.linalg.norm(self.tf.h_test):.2e}')
+        self.logger.info(f'Htilde Norm: {np.linalg.norm(self.tf.h_tilde):.2e}')
+        self.logger.info(f'Hembed Norm: {np.linalg.norm(self.tf.h_embed):.2e}')
 
         self.logger.info('Generating circuits.')
         circuit_gen = CircuitGen1DA(self.logger, backend.fake_backend)
