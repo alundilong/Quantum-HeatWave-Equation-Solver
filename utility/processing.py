@@ -216,7 +216,7 @@ class StateProcessor(ProcessorBase):
         """
         state = self.states[index]
         assert len(state) == transform.shape[1], 'length of state must be equal to transform shape'
-        assert np.linalg.matrix_rank(transform) == transform.shape[0],\
+        assert np.linalg.matrix_rank(transform,tol=1e-10) == transform.shape[0],\
             'transform must be full rank (check boundary conditions)'
         state = transform @ (state * self.norm)
         middle = state.shape[0] // 2
