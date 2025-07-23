@@ -112,7 +112,7 @@ def plot_multi(data, idx, shots=None, colors=['black', 'red', 'blue']):
     ax_tau_alpha.tick_params(axis='y', labelcolor='blue')
     ax_tau_alpha.set_ylim(*tau_lim)
 
-    ax_alpha.plot(np.arange(nx+2), medium_fields[0], color='red', label='$\\mu$')
+    ax_alpha.plot(np.arange(nx+2), medium_fields[0], color='red', label='$\\alpha$')
     ax_alpha.set_ylabel('$\\alpha$ [$m^2$/s]', color='red')
     ax_alpha.tick_params(axis='y', labelcolor='red')
     ax_alpha.set_ylim(*alpha_lim)
