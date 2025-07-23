@@ -38,14 +38,30 @@ def main() -> None:
     experiment = ForwardExperiment1D(verbose=2)
 
     # Set Experiment Parameters
-    nx = 7
+    n = 3
+    nx = 2**n - 1
     alpha = 1.11e-4
     tau = 1e-12
+    L = 7e-9
+    dx = L/nx
+    dt = 1e-10
+    nt = 199
+
+    t0 = L*L/alpha
+    eps = tau*alpha/L
+
+    experiment.logger.info(f'dimensionless t0 = {t0:.2e}')
+    experiment.logger.info(f'dimensionless eps = {eps:.2e}')
+
+    alpha = 1
+    tau = eps
+    dx = 1
+    dt = 0.001
     parameters = {
-        'dx': 1e-6,                                             # Grid spacing
+        'dx': dx,                                             # Grid spacing
         'nx': nx,                                               # Number of grid points
-        'dt': 1e-10,                                           # Time stepping
-        'nt': 19,                                               # Number of time steps
+        'dt': dt,                                           # Time stepping
+        'nt': nt,                                               # Number of time steps
         'order': 1,                                             # Finite-difference order
         'bcs': {'left': 'DBC', 'right': 'DBC'},                 # Boundary conditions
         'alpha': raised_cosine(alpha, nx+1, nx, 6, alpha),  # thermal diffusivity distribution
@@ -78,8 +94,16 @@ def main() -> None:
 
     # Run experiment
     _ = experiment.run()
+
+    dstep = nt//5
+
     plotparameters = {
-            'idx': [0,2,10,16,18]
+            'idx': [
+                nt-1-4*dstep,
+                nt-1-3*dstep,
+                nt-1-2*dstep,
+                nt-1-dstep,
+                nt-1]
             }
     
     experiment.plot(mode='multi',solvers=solvers_idx,**plotparameters)
