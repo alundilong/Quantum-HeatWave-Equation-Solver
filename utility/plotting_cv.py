@@ -132,7 +132,7 @@ def plot_multi(data, idx, shots=None, colors=['black', 'red', 'blue']):
             getattr(sns, style)(x=np.arange(nx+2), y=field[t], ax=ax,
                                 label=solv_list[j],
                                 color=colors[j])
-        ax.set_title(f"t = {times[t]:.{digits}f} s")
+        ax.set_title(f"t = {times[t]:.{digits}e} s")
         ax.set_xlabel("x [m]")
         ax.set_ylabel("u [K]")
         ax.set_ylim(*field_lim)
