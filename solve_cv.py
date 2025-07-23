@@ -31,7 +31,7 @@ from utility.distributions import (spike, ricker, gaussian, raised_cosine,
 # -------- FUNCTIONS --------
 def main() -> None:
     """
-    Runs the quantum 1D elastic wave equation solver.
+    Runs the quantum 1D CV equation solver.
     """
 
     # Create experiment
@@ -42,9 +42,9 @@ def main() -> None:
     alpha = 1.11e-4
     tau = 1e-12
     parameters = {
-        'dx': 1e-3,                                             # Grid spacing
+        'dx': 1e-6,                                             # Grid spacing
         'nx': nx,                                               # Number of grid points
-        'dt': 0.0001,                                           # Time stepping
+        'dt': 1e-10,                                           # Time stepping
         'nt': 19,                                               # Number of time steps
         'order': 1,                                             # Finite-difference order
         'bcs': {'left': 'DBC', 'right': 'DBC'},                 # Boundary conditions
@@ -53,7 +53,7 @@ def main() -> None:
         'u': spike(1, nx, nx//2+1),                             # Initial temperature
         'v': homogeneous(0, nx),                                # Initial temperature change rate
         'backend': {
-            'synthesis': 'MatrixExponential',                   # Time Evolution Synthesis Method
+            'synthesis': 'MatrixExponential',           # Time Evolution Synthesis Method
             'batch_size': 100,                                  # Circuit Batch Size
             'fitter': 'cvxpy_gaussian',                         # State Tomography fitter
             'backend': 'ibmq_qasm_simulator',                   # Cloud backend name
@@ -70,6 +70,9 @@ def main() -> None:
     # Define solvers
     solvers=['ode','exp','local']
     solvers_idx=[0,1,2]
+
+    #solvers=['ode','exp']
+    #solvers_idx=[0,1]
     for s in solvers:
         experiment.add_solver(s, **parameters)
 
