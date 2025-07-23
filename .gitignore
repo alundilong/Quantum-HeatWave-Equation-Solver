@@ -166,3 +166,4 @@ data/*
 .vscode/*
 
 figures/
+*.sh
