@@ -244,11 +244,14 @@ class Solver1DEXP(Solver1D):
             Dict[str, Any]: A dictionary containing the field data and other results.
         """
         self.logger.info('Solving matrix exponential.')
-
-        n = self.tf.h_embed.shape[0] // 2  # Get N (half the size of H_embed)
+        initial_state = self.st.get_state(0)
+        N = len(initial_state)
+        Psi_0 = np.zeros(2 * N, dtype=complex)
+        Psi_0[:N] = initial_state  # Upper half is physical state
         self.st.states = np.array([
-            np.real(scipy.linalg.expm(time * -1j * self.tf.h_embed)[:n,:n] @ self.st.get_state(0))
-            for time in self.times])
+            np.real(scipy.linalg.expm(time * -1j * self.tf.h_embed) @ Psi_0)
+            for time in self.times])[:,:N]
+        self.logger.info(f'Shape of st.states: {self.st.states.shape}')
         self.logger.info('Matrix exponential solved.')
 
         _ = [self.st.inverse_state(i, self.tf.inv_sqrt_m @ self.tf.inv_t)
@@ -300,10 +303,20 @@ class Solver1DLocal(Solver1D):
         sampler, _ = backend.get_sampler()
         self.logger.info('Backend initialized.')
 
+        initial_state = self.st.get_state(0)
+        N = len(initial_state)
+        Psi_0 = np.zeros(2 * N, dtype=complex)
+        Psi_0[:N] = initial_state  # Upper half is physical state
+
+        self.logger.info(f'Psi0 Norm: {np.linalg.norm(Psi_0)}')
+        self.logger.info(f'Htest Norm: {np.linalg.norm(self.tf.h_test)}')
+        self.logger.info(f'Htilde Norm: {np.linalg.norm(self.tf.h_tilde)}')
+        self.logger.info(f'Hembed Norm: {np.linalg.norm(self.tf.h_embed)}')
+
         self.logger.info('Generating circuits.')
         circuit_gen = CircuitGen1DA(self.logger, backend.fake_backend)
         self.circuit_groups = circuit_gen.tomography_circuits(
-            self.st.get_state(0),
+            Psi_0,
             self.tf.h_embed,
             self.times[1:],
             self.kwargs['backend']['synthesis'],
@@ -321,12 +334,12 @@ class Solver1DLocal(Solver1D):
 
         self.logger.info('Running tomography.')
         tomo = TomographyReal(self.logger, self.kwargs['backend']['fitter'])
-        observables = list(product("ZX", repeat=int(np.log2(self.tf.h.shape[0]))))
+        observables = list(product("ZX", repeat=int(np.log2(self.tf.h_embed.shape[0]))))
         self.logger.debug(f'Observables: {observables}')
         states_raw = tomo.run_tomography(result_groups, observables, self.times[1:])
         self.logger.info('Tomography completed.')
 
-        self.st.states = np.real(parallel_transport(states_raw, self.st.get_state(0)))
+        self.st.states = np.real(parallel_transport(states_raw, Psi_0))[:,:N]
         self.logger.info('State polarization corrected.')
         _ = [self.st.inverse_state(i, self.tf.inv_sqrt_m @ self.tf.inv_t)
          for i in range(1, len(self.times))]
