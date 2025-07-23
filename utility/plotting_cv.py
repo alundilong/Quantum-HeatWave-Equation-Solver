@@ -56,8 +56,8 @@ def plot_multi(data, idx, shots=None, colors=['black', 'red', 'blue']):
     settings = data[0]['settings']
     times, tau, alpha = data[0]['times'], settings['tau'], settings['alpha']
     bcs, nx = settings['bcs'], settings['nx']
-    tau_lim = (0, 1e-8)
-    mu_lim = (0, 1e-3)
+    tau_lim = (0, 6)
+    alpha_lim = (0, 3)
     field_lim = (-1.2, 1.2)
     digits = 4
 
@@ -113,9 +113,9 @@ def plot_multi(data, idx, shots=None, colors=['black', 'red', 'blue']):
     ax_tau_alpha.set_ylim(*tau_lim)
 
     ax_alpha.plot(np.arange(nx+2), medium_fields[0], color='red', label='$\\mu$')
-    ax_alpha.set_ylabel('$\\mu$ [$m^2$/s]', color='red')
+    ax_alpha.set_ylabel('$\\alpha$ [$m^2$/s]', color='red')
     ax_alpha.tick_params(axis='y', labelcolor='red')
-    ax_alpha.set_ylim(*mu_lim)
+    ax_alpha.set_ylim(*alpha_lim)
 
     lines, labels = ax_tau_alpha.get_legend_handles_labels()
     lines2, labels2 = ax_alpha.get_legend_handles_labels()
@@ -159,8 +159,8 @@ def plot_medium(mu, tau, **kwargs):
     """
     _ = kwargs
     nx = len(tau)
-    tau_lim = (0, 1e-8)
-    mu_lim = (0, 1e-3)
+    tau_lim = (0, 6)
+    alpha_lim = (0, 3)
 
     # Prepare medium
     medium_fields = []
@@ -181,9 +181,9 @@ def plot_medium(mu, tau, **kwargs):
     ax_tau_alpha.set_ylim(*tau_lim)
 
     ax_alpha.plot(np.arange(nx+2), medium_fields[0], color='red', label='$\\mu$')
-    ax_alpha.set_ylabel('$\\mu$ [$m^2$/s]', color='red')
+    ax_alpha.set_ylabel('$\\alpha$ [$m^2$/s]', color='red')
     ax_alpha.tick_params(axis='y', labelcolor='red')
-    ax_alpha.set_ylim(*mu_lim)
+    ax_alpha.set_ylim(*alpha_lim)
 
     lines, labels = ax_tau_alpha.get_legend_handles_labels()
     lines2, labels2 = ax_alpha.get_legend_handles_labels()
