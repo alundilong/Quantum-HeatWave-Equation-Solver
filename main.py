@@ -21,6 +21,8 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
 }
 """
+import argparse
+import json
 
 # -------- IMPORTS --------
 # Own modules
@@ -34,20 +36,31 @@ def main() -> None:
     Runs the quantum 1D elastic wave equation solver.
     """
 
+    # Parse input arguments
+    parser = argparse.ArgumentParser(description="Run 1D CV equation solver with config file")
+    parser.add_argument("config_path", type=str, help="Path to the configuration JSON file")
+    args = parser.parse_args()
+
+    # Load configuration from JSON
+    with open(args.config_path, 'r') as f:
+        config = json.load(f)
+
     # Create experiment
     experiment = ForwardExperiment1D(verbose=2)
 
     # Set Experiment Parameters
-    nx = 7
+    nx = config["nx"]
     
-    mu = 3e10
-    rho = 2e3
+    mu = config["mu"]
+    rho = config["rho"]
+    nt = config["nt"]
+    dt = config["dt"]
 
     parameters = {
         'dx': 1,                                        # Grid spacing
         'nx': nx,                                       # Number of grid points
-        'dt': 0.0001,                                   # Time stepping
-        'nt': 19,                                       # Number of time steps
+        'dt': dt,                                       # Time stepping
+        'nt': nt,                                       # Number of time steps
         'order': 1,                                     # Finite-difference order
         'bcs': {'left': 'DBC', 'right': 'DBC'},         # Boundary conditions
         'mu': raised_cosine(mu, nx+1, nx, 6, mu),   # Elastic modulus distribution
@@ -70,16 +83,23 @@ def main() -> None:
         }
 
     # Define solvers
-    solvers=['ode','exp','local']
-    solvers_idx=[0,1,2]
+    solvers=['ode','exp']
+    solvers_idx=[0,1]
     for s in solvers:
         experiment.add_solver(s, **parameters)
 
     # Run experiment
     _ = experiment.run()
 
+    dstep = nt//5
+
     plotparameters = {
-            'idx': [0,2,10,16,18]
+            'idx': [
+                nt-1-4*dstep,
+                nt-1-3*dstep,
+                nt-1-2*dstep,
+                nt-1-dstep,
+                nt-1]
             }
     
     experiment.plot(mode='multi',solvers=solvers_idx,**plotparameters)
