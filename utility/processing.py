@@ -189,7 +189,7 @@ class StateProcessor(ProcessorBase):
             np.ndarray: The statevector of the state.
         """
         state = self.states[index]
-        assert np.round(np.linalg.norm(state*factor), 10) == 1, 'state is not a valid statevector'
+        assert np.round(np.linalg.norm(state)*factor, 10) == 1, 'state is not a valid statevector'
         return state
 
     def forward_state(self, index: int, transform: np.ndarray, factor: float = 1.0) -> None:
@@ -203,8 +203,8 @@ class StateProcessor(ProcessorBase):
         state = np.concatenate(self._get_vals(index))
         assert len(state) == transform.shape[1], 'length of state must be equal to transform shape'
         transformed_state = transform @ state
-        self.norm = np.linalg.norm(transformed_state*factor)
-        self.states[index] = transformed_state / self.norm
+        self.norm = np.linalg.norm(transformed_state)
+        self.states[index] = transformed_state / self.norm / factor
 
     def inverse_state(self, index: int, transform: np.ndarray) -> None:
         """
