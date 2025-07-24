@@ -58,6 +58,8 @@ def main() -> None:
     nx = 2 ** n - 1
     dx = L / nx
 
+    shots = config["shots"]
+
     t0 = L*L/alpha
     eps = tau*alpha/L/L
 
@@ -84,7 +86,7 @@ def main() -> None:
             'batch_size': 100,                                  # Circuit Batch Size
             'fitter': 'cvxpy_gaussian',                         # State Tomography fitter
             'backend': 'ibmq_qasm_simulator',                   # Cloud backend name
-            'shots': 1000,                                      # Number of circuit samples
+            'shots': shots,                                     # Number of circuit samples
             'optimization': 3,                                  # Circuit optimization level
             'resilience': 1,                                    # Circuit resilience level
             'seed': 0,                                          # Transpilation seed
