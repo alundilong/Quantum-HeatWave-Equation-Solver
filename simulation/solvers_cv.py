@@ -247,7 +247,7 @@ class Solver1DEXP(Solver1D):
         self.st = StateProcessor(self.kwargs['nx'], self.kwargs['nt'], shift=1)
         self.st.set_u(self.kwargs['u'], 0)
         self.st.set_v(self.kwargs['v'], 0)
-        self.st.forward_state(0, self.tf.t @ self.tf.sqrt_m)
+        self.st.forward_state(0, self.tf.t @ self.tf.sqrt_m, factor=1.0)
         self.logger.info('Initial state forward-transformed.')
 
     def run(self) -> Dict[str, Any]:
@@ -258,18 +258,14 @@ class Solver1DEXP(Solver1D):
             Dict[str, Any]: A dictionary containing the field data and other results.
         """
         self.logger.info('Solving matrix exponential.')
-        initial_state = self.st.get_state(0)/np.sqrt(2.)
+        initial_state = self.st.get_state(0,factor = 1.0)
         N = len(initial_state)
-        Psi_0 = np.zeros(2 * N, dtype=complex)
-        Psi_0[:N] = initial_state  # Upper half is physical state
-        Psi_0[N:] = initial_state  # Bottom half is physical state
         self.st.states = np.array([
-            np.real(scipy.linalg.expm(time * -1j * self.tf.h_embed) @ Psi_0)
-            for time in self.times])[:,:N]
+            np.real(scipy.linalg.expm(time * -1j * self.tf.h_tilde) @ initial_state)
+            for time in self.times])
         self.logger.info(f'Shape of st.states: {self.st.states.shape}')
         self.logger.info('Matrix exponential solved.')
 
-        self.st.norm = self.st.norm*np.sqrt(2.0)
         _ = [self.st.inverse_state(i, self.tf.inv_sqrt_m @ self.tf.inv_t)
          for i in range(len(self.times))]
         self.logger.info('States inverse-transformed.')
@@ -293,7 +289,7 @@ class Solver1DLocal(Solver1D):
         self.st = StateProcessor(self.kwargs['nx'], self.kwargs['nt'], shift=1)
         self.st.set_u(self.kwargs['u'], 0)
         self.st.set_v(self.kwargs['v'], 0)
-        self.st.forward_state(0, self.tf.t @ self.tf.sqrt_m)
+        self.st.forward_state(0, self.tf.t @ self.tf.sqrt_m, factor = 2.0)
         self.circuit_groups = []
         self.logger.info('Initial state transformed.')
 
@@ -319,7 +315,7 @@ class Solver1DLocal(Solver1D):
         sampler, _ = backend.get_sampler()
         self.logger.info('Backend initialized.')
 
-        initial_state = self.st.get_state(0)/np.sqrt(2.)
+        initial_state = self.st.get_state(0, factor = 2.0)
         N = len(initial_state)
         Psi_0 = np.zeros(2 * N, dtype=complex)
         Psi_0[:N] = initial_state  # Upper half is physical state
@@ -356,7 +352,7 @@ class Solver1DLocal(Solver1D):
         states_raw = tomo.run_tomography(result_groups, observables, self.times[1:])
         self.logger.info('Tomography completed.')
 
-        self.st.states = np.real(parallel_transport(states_raw, Psi_0))[:,:N]
+        self.st.states = np.real(parallel_transport(states_raw, Psi_0))[:,N:]
         self.logger.info('State polarization corrected.')
         self.st.norm = self.st.norm*np.sqrt(2.0)
         _ = [self.st.inverse_state(i, self.tf.inv_sqrt_m @ self.tf.inv_t)
