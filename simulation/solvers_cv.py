@@ -414,7 +414,7 @@ class Solver1DLocal(Solver1D):
 
         self.st.states = np.real(parallel_transport(states_raw, Psi_0))[:,:N]
         self.logger.info('State polarization corrected.')
-        _ = [self.st.inverse_state(i, self.tf.inv_sqrt_m @ self.tf.inv_t)
+        _ = [self.st.inverse_state(i, self.tf.inv_sqrt_m @ self.tf.inv_t, factor=np.sqrt(2.0))
          for i in range(1, len(self.times))]
         self.logger.info('States inverse-transformed.')
 

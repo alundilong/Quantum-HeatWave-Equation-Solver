@@ -206,7 +206,7 @@ class StateProcessor(ProcessorBase):
         self.norm = np.linalg.norm(transformed_state)
         self.states[index] = transformed_state / self.norm / factor
 
-    def inverse_state(self, index: int, transform: np.ndarray) -> None:
+    def inverse_state(self, index: int, transform: np.ndarray, factor: float = 1.0) -> None:
         """
         Inverse transform the statevector of the state.
         
@@ -218,7 +218,7 @@ class StateProcessor(ProcessorBase):
         assert len(state) == transform.shape[1], 'length of state must be equal to transform shape'
         assert np.linalg.matrix_rank(transform,tol=1e-10) == transform.shape[0],\
             'transform must be full rank (check boundary conditions)'
-        state = transform @ (state * self.norm)
+        state = transform @ (state * self.norm) * factor
         middle = state.shape[0] // 2
         self._set_val1(state[:middle], index)
         self._set_val2(state[middle:], index)
