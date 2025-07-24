@@ -34,6 +34,12 @@ import numpy as np
 import scipy
 from scipy.integrate import solve_ivp
 
+from qiskit_aer import Aer
+from qiskit.circuit.library import UnitaryGate
+from qiskit import QuantumCircuit, transpile, assemble
+from qiskit.quantum_info import Statevector
+from scipy.linalg import expm
+
 # Own modules
 from utility.transform_cv import FDTransform1DA
 from utility.processing import ThermalMediumProcessor, StateProcessor
@@ -265,6 +271,59 @@ class Solver1DEXP(Solver1D):
             for time in self.times])
         self.logger.info(f'Shape of st.states: {self.st.states.shape}')
         self.logger.info('Matrix exponential solved.')
+
+        _ = [self.st.inverse_state(i, self.tf.inv_sqrt_m @ self.tf.inv_t)
+         for i in range(len(self.times))]
+        self.logger.info('States inverse-transformed.')
+
+        self.data['field'] = self.st.get_dict()
+        return self.data
+
+class Solver1DCustomCircuit(Solver1D):
+    """
+    A subclass of Solver1D for solving with a 
+    Customized Circuit time evolution solver.
+
+    Inherits from Solver1D.
+
+    Args:
+        logger (object): A logging instance to record the process and errors.
+        **kwargs: Arbitrary keyword arguments for configuration.
+    """
+
+    def __init__(self, base_data: object, logger: object, **kwargs) -> None:
+        super().__init__(base_data, logger, **kwargs)
+        self.st = StateProcessor(self.kwargs['nx'], self.kwargs['nt'], shift=1)
+        self.st.set_u(self.kwargs['u'], 0)
+        self.st.set_v(self.kwargs['v'], 0)
+        self.st.forward_state(0, self.tf.t @ self.tf.sqrt_m, factor=1.0)
+        self.logger.info('Initial state forward-transformed.')
+
+    def run(self) -> Dict[str, Any]:
+        """
+        Runs the matrix exponential solver and processes the results.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing the field data and other results.
+        """
+        self.logger.info('Solving matrix exponential.')
+
+        self.logger.info(f'Shape of st.states: {self.st.states.shape}')
+        self.logger.info('Customized Circuit solved.')
+
+        # Non-Hermitian Hamiltonian and time grid
+        H = self.tf.h_tilde
+        times = self.times
+        num_qubits = int(np.log2(H.shape[0]))
+        initial_state = self.st.get_state(0, factor=1.0)
+
+        evolved_states = []
+        for t in times:
+            U_t = expm(-1j * t * H)                # Matrix exponential of non-Hermitian H
+            psi_t = U_t @ initial_state            # Apply evolution operator
+            evolved_states.append(psi_t)
+
+        self.st.states = np.array(evolved_states)
 
         _ = [self.st.inverse_state(i, self.tf.inv_sqrt_m @ self.tf.inv_t)
          for i in range(len(self.times))]
