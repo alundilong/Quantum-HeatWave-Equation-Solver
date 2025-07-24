@@ -95,11 +95,9 @@ def main() -> None:
         }
 
     # Define solvers
-    solvers=['ode','exp','local']
-    solvers_idx=[0,1,2]
+    solvers = config["solvers"]
+    solvers_idx = config["solvers_idx"]
 
-    #solvers=['ode','exp']
-    #solvers_idx=[0,1]
     for s in solvers:
         experiment.add_solver(s, **parameters)
 
