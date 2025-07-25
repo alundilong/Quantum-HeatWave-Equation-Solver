@@ -253,7 +253,7 @@ class Solver1DEXP(Solver1D):
         self.st = StateProcessor(self.kwargs['nx'], self.kwargs['nt'], shift=1)
         self.st.set_u(self.kwargs['u'], 0)
         self.st.set_v(self.kwargs['v'], 0)
-        self.st.forward_state(0, self.tf.t @ self.tf.sqrt_m, factor=1.0)
+        self.st.forward_state(0, self.tf.t @ self.tf.sqrt_m)
         self.logger.info('Initial state forward-transformed.')
 
     def run(self) -> Dict[str, Any]:
@@ -264,8 +264,7 @@ class Solver1DEXP(Solver1D):
             Dict[str, Any]: A dictionary containing the field data and other results.
         """
         self.logger.info('Solving matrix exponential.')
-        initial_state = self.st.get_state(0,factor = 1.0)
-        N = len(initial_state)
+        initial_state = self.st.get_state(0)
         self.st.states = np.array([
             np.real(scipy.linalg.expm(time * -1j * self.tf.h_tilde) @ initial_state)
             for time in self.times])
@@ -279,10 +278,10 @@ class Solver1DEXP(Solver1D):
         self.data['field'] = self.st.get_dict()
         return self.data
 
-class Solver1DCustomCircuit(Solver1D):
+class Solver1DEXP_emb(Solver1D):
     """
-    A subclass of Solver1D for solving with a 
-    Customized Circuit time evolution solver.
+    A subclass of Solver1D for solving with a classical
+        Matrix exponential time evolution solver.
 
     Inherits from Solver1D.
 
@@ -296,7 +295,8 @@ class Solver1DCustomCircuit(Solver1D):
         self.st = StateProcessor(self.kwargs['nx'], self.kwargs['nt'], shift=1)
         self.st.set_u(self.kwargs['u'], 0)
         self.st.set_v(self.kwargs['v'], 0)
-        self.st.forward_state(0, self.tf.t @ self.tf.sqrt_m, factor=1.0)
+        self.factor = 1.0
+        self.st.forward_state(0, self.tf.t @ self.tf.sqrt_m, factor=self.factor)
         self.logger.info('Initial state forward-transformed.')
 
     def run(self) -> Dict[str, Any]:
@@ -307,25 +307,17 @@ class Solver1DCustomCircuit(Solver1D):
             Dict[str, Any]: A dictionary containing the field data and other results.
         """
         self.logger.info('Solving matrix exponential.')
-
+        initial_state = self.st.get_state(0,factor = self.factor)
+        N = len(initial_state)
+        Psi_0 = np.zeros(2 * N, dtype=complex)
+        Psi_0[:N] = initial_state  # Upper half is physical state
+        self.st.states = np.array([
+            np.real(scipy.linalg.expm(time * -1j * self.tf.h_embed) @ Psi_0)
+            for time in self.times])[:,:N]
         self.logger.info(f'Shape of st.states: {self.st.states.shape}')
-        self.logger.info('Customized Circuit solved.')
+        self.logger.info('Matrix exponential solved.')
 
-        # Non-Hermitian Hamiltonian and time grid
-        H = self.tf.h_tilde
-        times = self.times
-        num_qubits = int(np.log2(H.shape[0]))
-        initial_state = self.st.get_state(0, factor=1.0)
-
-        evolved_states = []
-        for t in times:
-            U_t = expm(-1j * t * H)                # Matrix exponential of non-Hermitian H
-            psi_t = U_t @ initial_state            # Apply evolution operator
-            evolved_states.append(psi_t)
-
-        self.st.states = np.array(evolved_states)
-
-        _ = [self.st.inverse_state(i, self.tf.inv_sqrt_m @ self.tf.inv_t)
+        _ = [self.st.inverse_state(i, self.tf.inv_sqrt_m @ self.tf.inv_t, factor=self.factor)
          for i in range(len(self.times))]
         self.logger.info('States inverse-transformed.')
 
