@@ -29,6 +29,8 @@ from typing import Dict, List
 
 # Other modules
 import numpy as np
+from qiskit_dynamics.solvers import Solver
+from qiskit.quantum_info import Operator
 
 # -------- CONSTANTS --------
 FORWARD_FD_COEFF: Dict[int, List[float]] = {
@@ -37,6 +39,71 @@ FORWARD_FD_COEFF: Dict[int, List[float]] = {
         3: [-11/6, 3, -3/2, 1/3],
         4: [-25/12, 4, -3, 4/3, -1/4]
     }
+
+class LindbladFromNonHermitian:
+    def __init__(self, H_tilde: np.ndarray):
+        """
+        Parameters:
+            H_tilde : complex (n, n) ndarray, non-Hermitian generator
+        """
+        if not np.iscomplexobj(H_tilde):
+            raise ValueError("H_tilde must be complex-valued")
+        if H_tilde.shape[0] != H_tilde.shape[1]:
+            raise ValueError("H_tilde must be square")
+
+        self.n = H_tilde.shape[0]
+        self.H_tilde = H_tilde
+
+        # Split into Hermitian and anti-Hermitian parts
+        self.H = 0.5 * (H_tilde + H_tilde.conj().T)
+        self.A = 0.5j * (H_tilde - H_tilde.conj().T)
+
+        # Validate and construct collapse operators
+        self.C_ops = self._construct_collapse_operators(self.A)
+
+        # Create Solver
+        self.solver = Solver(
+            static_hamiltonian=self.H,
+            static_dissipators=self.C_ops,
+        )
+
+    def _construct_collapse_operators(self, A: np.ndarray):
+        """
+        Try to compute collapse operators such that A = 0.5 * sum Cj† Cj
+        """
+        # Check Hermiticity
+        if not np.allclose(A, A.conj().T, atol=1e-12):
+            raise ValueError("A is not Hermitian. Cannot construct collapse operators.")
+
+        # Ensure A is positive semi-definite
+        eigvals, eigvecs = np.linalg.eigh(A)
+        if np.any(eigvals < -1e-12):
+            raise ValueError("Anti-Hermitian part is not positive semi-definite. Cannot simulate via Lindblad.")
+
+        # Form collapse operators: C_j = sqrt(2λ_j) v_j
+        C_ops = []
+        for lam, vec in zip(eigvals, eigvecs.T):
+            if lam > 1e-12:
+                Cj = np.sqrt(2 * lam) * vec[:, np.newaxis]  # shape (n, 1)
+                #C_ops.append(Operator(Cj @ Cj.conj().T))     # shape (n, n)
+                C_ops.append(Operator(Cj.conj() @ Cj.T))     # shape (n, n)
+
+        return C_ops
+
+    def simulate(self, psi0: np.ndarray, t_span: np.ndarray):
+        """
+        Simulate time evolution under Lindblad equation
+
+        Parameters:
+            psi0   : (n,) complex ndarray, initial state vector
+            t_span : 1D array of time points
+
+        Returns:
+            result : SolverResult from Qiskit Dynamics
+        """
+        if psi0.shape != (self.n,):
+            raise ValueError(f"psi0 must be of shape ({self.n},)")
+        return self.solver.solve(t_span=t_span, y0=np.outer(psi0,psi0.conj()))
 
 # -------- CLASSES --------
 class FDTransform1DA:
@@ -60,6 +127,7 @@ class FDTransform1DA:
         # Define mass-like matrices(lagging coefficient)
         self.sqrt_m = self.get_sqrt_m(self.tau, self.get_z(self.nx))
         self.inv_sqrt_m = self.get_inv_sqrt_m(self.tau, self.get_z(self.nx))
+        self.inv_m = self.get_inv_m(self.tau, self.get_z(self.nx))
 
         # Define cholesky decomposition
         self.u = self.get_u(self.tau, self.alpha, self.d)
@@ -82,6 +150,24 @@ class FDTransform1DA:
         self.h_test = self.get_h_test(scale(self.u, cols=1), self.get_z(self.nx+1))
 
         self.h_embed = self.get_embed_hamiltonian(self.h_tilde)
+
+        self.solver = LindbladFromNonHermitian(self.h_tilde)
+
+    def simulate(self, psi0, time_list):
+        """Simulate the Lindblad dynamics with optional initial state and time points."""
+        result = self.solver.simulate(psi0,t_span=[time_list[0], time_list[-1]])
+        print(result.y.shape)
+        print(result.t.shape)
+
+        # result.y.shape = (7, 16, 16)
+        rho_t_list = result.y  # already a list of 16x16 matrices
+
+        # Extract dominant eigenvector (corresponding to the largest eigenvalue)
+        psi_t_list = [np.linalg.eigh(rho)[1][:, -1] for rho in rho_t_list]
+
+        # Normalize each state vector (just to be safe)
+        psi_t_list = [psi / np.linalg.norm(psi) for psi in psi_t_list]
+        return psi_t_list
 
     def get_z(self, length: int) -> np.ndarray:
         """
@@ -151,6 +237,20 @@ class FDTransform1DA:
         """
         return np.block([[np.diag(np.sqrt(1/np.array(tau))), z],
                          [z, np.diag(np.sqrt(1/np.array(tau)))]])
+
+    def get_inv_m(self, tau: np.ndarray, z: np.ndarray) -> np.ndarray:
+        """
+        Calculates the inverse matrix of the medium densities.
+        
+        Args:
+            tau (np.ndarray): The medium densities.
+            z (np.ndarray): The zero matrix.
+            
+        Returns:
+            np.ndarray: The inverse mass matrix.
+        """
+        return np.block([[np.diag(1/np.array(tau)), z],
+                         [z, np.diag(1/np.array(tau))]])
 
     def get_d(self, order: int, length: int, dx: float) -> np.ndarray:
         """

@@ -70,6 +70,8 @@ def plot_multi(data, idx, shots=None, colors=['black', 'red', 'blue']):
             solv_list.append(f'Matrix Exponential Solver {apx}')
         elif d['settings']['solver'] == 'exp_emb':
             solv_list.append(f'Emb Matrix Exponential Solver {apx}')
+        elif d['settings']['solver'] == 'lindblad':
+            solv_list.append(f'Lindblad Solver {apx}')
         elif d['settings']['solver'] == 'local' and not d['settings']['backend']['fake']:
             solv_list.append(f'Quantum Simulator {apx}')
         elif d['settings']['solver'] == 'local' and d['settings']['backend']['fake']:
