@@ -37,7 +37,9 @@ import numpy as np
 # Own modules
 from config.logger import Logger
 from utility.plotting import plot_multi, plot_medium, plot_initial, plot_error, plot_circuit
-from .solvers import Solver1DODE, Solver1DEXP, Solver1DLocal, Solver1DCloud
+from .solvers import Solver1DODE, Solver1DEXP, Solver1DLocal, Solver1DCloud, \
+        Solver1DDialation,\
+        Solver1DKrylov
 
 # -------- CONSTANTS --------
 EXT = '.pkl'
@@ -74,7 +76,7 @@ class ForwardExperiment1D:
         Add a 1D solver to the experiment.
         
         Args:
-            solver (str): Solver type. One of 'ode', 'exp', 'local', 'cloud'.
+            solver (str): Solver type. One of 'ode', 'exp', 'krylov', 'dialation', 'local', 'cloud'.
             dx (float): Spatial step size.
             nx (int): Number of spatial grid points.
             dt (float): Temporal step size.
@@ -90,7 +92,7 @@ class ForwardExperiment1D:
         self.logger.info(f'Adding solver {len(self.solvers)+1}: {solver}')
 
         # Check solver
-        assert solver in ['ode', 'exp', 'local', 'cloud'], 'Solver not implemented.'
+        assert solver in ['ode', 'exp', 'krylov', 'dialation', 'local', 'cloud'], 'Solver not implemented.'
 
         # Define solver number
         idx = len(self.solvers)
@@ -122,6 +124,10 @@ class ForwardExperiment1D:
                 self.solvers.append(Solver1DODE(self.base_data, self.logger, **kwargs))
             case 'exp':
                 self.solvers.append(Solver1DEXP(self.base_data, self.logger, **kwargs))
+            case 'dialation':
+                self.solvers.append(Solver1DDialation(self.base_data, self.logger, **kwargs))
+            case 'krylov':
+                self.solvers.append(Solver1DKrylov(self.base_data, self.logger, **kwargs))
             case 'local':
                 self.solvers.append(Solver1DLocal(self.base_data, self.logger, **kwargs))
             case 'cloud':

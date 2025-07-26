@@ -27,6 +27,12 @@ for the 1D elastic wave equation solver.}
 # Built-in modules
 from typing import Dict, List
 
+from scipy.linalg import expm
+from utility.non_hermitian_simulator import LindbladFromNonHermitian,\
+        LCU_NonHermitianSimulator,\
+        HermitianDilationSimulator,\
+        KrylovNonHermitianSimulator
+
 # Other modules
 import numpy as np
 
@@ -77,6 +83,16 @@ class FDTransform1DA:
 
         # Define hamiltonian
         self.h = self.get_h(scale(self.u, cols=1), self.get_z(self.nx+1))
+
+        self.dialation = HermitianDilationSimulator(self.h)
+
+        self.krylov = KrylovNonHermitianSimulator(self.h)
+
+    def simulate_dialation(self, psi0, time_list):
+        return self.dialation.simulate(psi0, time_list)
+
+    def simulate_krylov(self, psi0, time_list):
+        return self.krylov.simulate(psi0, time_list)
 
     def get_z(self, length: int) -> np.ndarray:
         """

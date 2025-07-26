@@ -1,4 +1,4 @@
-from scipy.linalg import eig, norm, schur
+from scipy.linalg import eig, norm, schur, sqrtm
 import numpy as np
 
 def is_normal(H, tol=1e-10):

@@ -38,7 +38,7 @@ PATH_MULTIPLOT = './figures/forward_sim.png'
 PATH_CIRCUIT = './figures/circuit.png'
 
 # -------- FUNCTIONS --------
-def plot_multi(data, idx, shots=None, colors=['black', 'red', 'blue']):
+def plot_multi(data, idx, shots=None, colors=['black', 'red', 'blue', 'green', 'gray', 'purple', 'yellow']):
     """
     Plotting function for plotting multiple solvers at different time steps.
     
@@ -68,6 +68,10 @@ def plot_multi(data, idx, shots=None, colors=['black', 'red', 'blue']):
             solv_list.append(f'ODE Solver {apx}')
         elif d['settings']['solver'] == 'exp':
             solv_list.append(f'Matrix Exponential Solver {apx}')
+        elif d['settings']['solver'] == 'dialation':
+            solv_list.append(f'Dialation Solver {apx}')
+        elif d['settings']['solver'] == 'krylov':
+            solv_list.append(f'Krylov Solver {apx}')
         elif d['settings']['solver'] == 'local' and not d['settings']['backend']['fake']:
             solv_list.append(f'Quantum Simulator {apx}')
         elif d['settings']['solver'] == 'local' and d['settings']['backend']['fake']:
