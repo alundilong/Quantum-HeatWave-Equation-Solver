@@ -74,6 +74,8 @@ def plot_multi(data, idx, shots=None, colors=['black', 'red', 'blue', 'green', '
             solv_list.append(f'Emb2 Matrix Exponential Solver {apx}')
         elif d['settings']['solver'] == 'dialation':
             solv_list.append(f'Dialation Solver {apx}')
+        elif d['settings']['solver'] == 'krylov':
+            solv_list.append(f'Krylov Solver {apx}')
         elif d['settings']['solver'] == 'lcu':
             solv_list.append(f'LCU Solver {apx}')
         elif d['settings']['solver'] == 'lindblad':

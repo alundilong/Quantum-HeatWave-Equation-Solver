@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.linalg import sqrtm, expm
+from scipy.linalg import sqrtm, expm, norm
 
 from qiskit_dynamics.solvers import Solver
 from qiskit.quantum_info import Operator
@@ -273,3 +273,67 @@ class HermitianDilationSimulator:
         psi_t = [v / np.linalg.norm(v) for v in psi_t]
 
         return np.array(psi_t)
+
+class KrylovNonHermitianSimulator:
+    def __init__(self, H_tilde: np.ndarray, m: int = 60):
+        """
+        Initialize the Krylov simulator for a non-Hermitian Hamiltonian.
+
+        Args:
+            H_tilde: Non-Hermitian matrix (n x n).
+            m: Number of Krylov basis vectors.
+        """
+        self.H_tilde = H_tilde
+
+        self.dim = H_tilde.shape[0]
+        self.m = m
+
+    def _arnoldi_iteration(self, v0: np.ndarray):
+        """
+        Perform Arnoldi iteration to generate an orthonormal Krylov basis.
+        """
+        n, m = self.dim, self.m
+        V = np.zeros((n, m), dtype=complex)
+        Hm = np.zeros((m, m), dtype=complex)
+
+        V[:, 0] = v0 / norm(v0)
+        for j in range(m - 1):
+            w = self.H_tilde @ V[:, j]
+            for i in range(j + 1):
+                Hm[i, j] = np.vdot(V[:, i], w)
+                w -= Hm[i, j] * V[:, i]
+            Hm[j + 1, j] = norm(w)
+            if Hm[j + 1, j] < 1e-12:
+                return V[:, :j+1], Hm[:j+1, :j+1]
+            V[:, j + 1] = w / Hm[j + 1, j]
+
+        # Last column
+        w = self.H_tilde @ V[:, m - 1]
+        for i in range(m):
+            Hm[i, m - 1] = np.vdot(V[:, i], w)
+        return V, Hm
+
+    def simulate(self, psi0: np.ndarray, time_list: list) -> np.ndarray:
+        """
+        Simulate the evolution over a list of time points.
+
+        Args:
+            psi0: Initial state vector (n, ).
+            time_list: List of time values.
+
+        Returns:
+            psi_t_list: Array of evolved states at each time (len(time_list), n).
+        """
+        # Save the complex matrix
+        np.save('psi0.npy', psi0)
+        V, Hm = self._arnoldi_iteration(psi0)
+        e1 = np.zeros((Hm.shape[0],), dtype=complex)
+        e1[0] = 1.0
+
+        psi_t_list = []
+        for t in time_list:
+            psi_t_sub = expm(-1j * Hm * t) @ e1
+            psi_t = V @ psi_t_sub
+            psi_t_list.append(psi_t / norm(psi_t))
+        return np.array(psi_t_list)
+    
