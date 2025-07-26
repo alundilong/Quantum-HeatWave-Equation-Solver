@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.linalg import sqrtm, expm
 
 from qiskit_dynamics.solvers import Solver
 from qiskit.quantum_info import Operator
@@ -8,6 +9,7 @@ from qiskit_aer import Aer, AerSimulator
 from qiskit.circuit import Gate
 from qiskit.circuit.library import UnitaryGate
 from qiskit.quantum_info import Pauli, SparsePauliOp
+from utility.matrix_tools import analyze_matrix
 
 class LindbladFromNonHermitian:
     def __init__(self, H_tilde: np.ndarray):
@@ -198,3 +200,76 @@ class LCU_NonHermitianSimulator:
 
         return results
 
+class HermitianDilationSimulator:
+    def __init__(self, H_q: np.ndarray, m0: float = 2.0, evolution_time: float = 1e-18):
+        """
+        Initialize the Hermitian Dilation Simulator for a time-independent non-Hermitian Hamiltonian.
+
+        Args:
+            H_q: Non-Hermitian Hamiltonian matrix (n x n).
+            m0: Scalar for initial M0 matrix (must be > 1).
+            evolution_time: Virtual time used to generate a well-behaved M matrix.
+        """
+        self.H_q = H_q
+        analyze_matrix(H_q)
+        self.dim = H_q.shape[0]
+        self.m0 = m0
+        self.M0 = m0 * np.eye(self.dim)
+        self.evolution_time = evolution_time
+        self.Haq = self._construct_Hermitian_dilation()
+
+    def _construct_Hermitian_dilation(self) -> np.ndarray:
+        """
+        Construct the Hermitian dilation Hamiltonian H_herm from time-independent H_q.
+        """
+        # Compute M using time-evolved formulation
+        U_dagger = expm(-1j * self.H_q.conj().T * self.evolution_time)
+        U = expm(1j * self.H_q * self.evolution_time)
+        M_t = U_dagger @ self.M0 @ U
+
+        # Ensure M is Hermitian
+        M_t = 0.5 * (M_t + M_t.conj().T)
+
+        # Compute eta and M_inv
+        eta = sqrtm(M_t - np.eye(self.dim))
+        M_inv = np.linalg.inv(M_t)
+        eta_dot = np.zeros_like(eta)  # still zero since H_q is constant
+
+        A = (self.H_q + 1j * eta_dot + eta @ self.H_q @ eta) @ M_inv
+        B = 1j * (self.H_q @ eta - eta @ self.H_q - 1j * eta_dot) @ M_inv
+
+        I = np.eye(2)
+        sigma_y = np.array([[0, -1j], [1j, 0]])
+        return np.kron(I, A) + np.kron(sigma_y, B)
+
+    def simulate(self, psi0: np.ndarray, times: list) -> np.ndarray:
+        """
+        Simulate the non-Hermitian dynamics using Hermitian dilation.
+
+        Args:
+            psi0: Initial state vector of the system (dim, ).
+            times: List of time values for simulation.
+
+        Returns:
+            psi_t: Array of evolved system states at each time step (len(times), dim).
+        """
+        dt = times[1] - times[0]
+
+        eta0 = np.sqrt(self.m0 - 1)
+        theta = 2 * np.arctan(eta0)
+        ancilla0 = np.array([np.cos(theta / 2), -np.sin(theta / 2)])
+        ancilla0 = ancilla0 / np.linalg.norm(ancilla0)
+        Psi0 = np.kron(ancilla0, psi0)
+
+        Psi_t = [Psi0]
+        U = expm(-1j * self.Haq * dt)
+
+        for _ in range(1, len(times)):
+            Psi_next = U @ Psi_t[-1]
+            Psi_t.append(Psi_next)
+
+        project_ancilla_0 = np.kron(np.array([[1, 0], [0, 0]]), np.eye(self.dim))
+        psi_t = [(project_ancilla_0 @ Psi).reshape(2, self.dim)[0] for Psi in Psi_t]
+        psi_t = [v / np.linalg.norm(v) for v in psi_t]
+
+        return np.array(psi_t)

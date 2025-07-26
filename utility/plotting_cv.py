@@ -38,7 +38,7 @@ PATH_MULTIPLOT = './figures/forward_sim.png'
 PATH_CIRCUIT = './figures/circuit.png'
 
 # -------- FUNCTIONS --------
-def plot_multi(data, idx, shots=None, colors=['black', 'red', 'blue', 'green', 'purple', 'gray']):
+def plot_multi(data, idx, shots=None, colors=['black', 'red', 'blue', 'green', 'purple', 'gray', 'yellow']):
     """
     Plotting function for plotting multiple solvers at different time steps.
     
@@ -72,6 +72,10 @@ def plot_multi(data, idx, shots=None, colors=['black', 'red', 'blue', 'green', '
             solv_list.append(f'Emb Matrix Exponential Solver {apx}')
         elif d['settings']['solver'] == 'exp_emb2':
             solv_list.append(f'Emb2 Matrix Exponential Solver {apx}')
+        elif d['settings']['solver'] == 'dialation':
+            solv_list.append(f'Dialation Solver {apx}')
+        elif d['settings']['solver'] == 'lcu':
+            solv_list.append(f'LCU Solver {apx}')
         elif d['settings']['solver'] == 'lindblad':
             solv_list.append(f'Lindblad Solver {apx}')
         elif d['settings']['solver'] == 'local' and not d['settings']['backend']['fake']:

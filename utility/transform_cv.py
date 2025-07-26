@@ -30,7 +30,7 @@ from typing import Dict, List
 # Other modules
 import numpy as np
 from scipy.linalg import expm
-from utility.non_hermitian_simulator import LindbladFromNonHermitian,LCU_NonHermitianSimulator
+from utility.non_hermitian_simulator import LindbladFromNonHermitian,LCU_NonHermitianSimulator,HermitianDilationSimulator
 
 # -------- CONSTANTS --------
 FORWARD_FD_COEFF: Dict[int, List[float]] = {
@@ -91,6 +91,8 @@ class FDTransform1DA:
 
         self.lcu = LCU_NonHermitianSimulator(self.h_tilde)
 
+        self.dialation = HermitianDilationSimulator(self.h_tilde)
+
     def simulate_lindblad(self, psi0, time_list):
         """Simulate the Lindblad dynamics with optional initial state and time points."""
         return self.solver.simulate(psi0,t_span=time_list)
@@ -98,6 +100,9 @@ class FDTransform1DA:
     def simulate_lcu(self, psi0, time_list):
         """Simulate the Lindblad dynamics with optional initial state and time points."""
         return self.lcu.simulate(psi0,time_list)
+
+    def simulate_dialation(self, psi0, time_list):
+        return self.dialation.simulate(psi0, time_list)
 
     def get_z(self, length: int) -> np.ndarray:
         """

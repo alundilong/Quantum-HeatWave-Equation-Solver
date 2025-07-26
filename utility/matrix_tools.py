@@ -69,6 +69,51 @@ def test_svd_decomposability(H_tilde: np.ndarray, rtol=1e-10):
             'message': f"SVD failed: {str(e)}"
         }
 
+def is_pseudo_hermitian(Q: np.ndarray, tol: float = 1e-10):
+    """
+    Test whether a given matrix Q is pseudo-Hermitian.
+
+    Returns:
+        is_pseudo (bool): True if Q is pseudo-Hermitian.
+        eta (np.ndarray or None): The Hermitian metric operator eta if found.
+        H (np.ndarray or None): The similar Hermitian matrix if found.
+    """
+    if not np.allclose(Q.shape[0], Q.shape[1]):
+        raise ValueError("Q must be a square matrix")
+
+    # Try diagonalizing Q
+    eigvals, V = eig(Q)
+    try:
+        V_inv = np.linalg.inv(V)
+    except np.linalg.LinAlgError:
+        return False, None, None  # not diagonalizable
+
+    # Construct candidate eta = (V† V)^(-1)
+    eta_inv = V.conj().T @ V
+    if np.linalg.matrix_rank(eta_inv) < Q.shape[0]:
+        return False, None, None
+
+    eta = np.linalg.inv(eta_inv)
+    eta = 0.5 * (eta + eta.conj().T)  # Ensure Hermitian
+
+    # Check the pseudo-Hermiticity condition
+    Q_dagger = Q.conj().T
+    pseudo_check = eta @ Q
+    rhs = Q_dagger @ eta
+
+    if np.allclose(pseudo_check, rhs, atol=tol):
+        # Construct similar Hermitian matrix
+        try:
+            eta_sqrt = sqrtm(eta)
+            eta_inv_sqrt = np.linalg.inv(eta_sqrt)
+            H = eta_sqrt @ Q @ eta_inv_sqrt
+            H = 0.5 * (H + H.conj().T)  # Symmetrize in case of numerical error
+            return True, eta, H
+        except np.linalg.LinAlgError:
+            return False, eta, None
+    else:
+        return False, None, None
+
 def analyze_matrix(H):
     """
     Analyze the matrix H to see if it is normal or diagonalizable with real eigenvalues.
@@ -81,7 +126,10 @@ def analyze_matrix(H):
     print(f" - Diagonalizable with real eigs?  {'Yes' if diagonalizable_real else 'No'}")
 
     status = test_svd_decomposability(H)
-    print(status['message'])
+    print(f'SVD : {status["message"]}')
+
+    status,_,_ = is_pseudo_hermitian(H)
+    print(f'peudo_hermit: {status}')
 
     return normal, diagonalizable_real
 
