@@ -275,7 +275,7 @@ class HermitianDilationSimulator:
         return np.array(psi_t)
 
 class KrylovNonHermitianSimulator:
-    def __init__(self, H_tilde: np.ndarray, m: int = 60):
+    def __init__(self, H_tilde: np.ndarray, m: int = 30):
         """
         Initialize the Krylov simulator for a non-Hermitian Hamiltonian.
 
