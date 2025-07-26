@@ -46,6 +46,7 @@ from utility.processing import ThermalMediumProcessor, StateProcessor
 from utility.backends import CloudBackend, LocalBackend, BackendService
 from utility.circuits_cv import CircuitGen1DA
 from utility.tomography import TomographyReal, parallel_transport
+from utility.matrix_tools import analyze_matrix
 
 # -------- CLASSES --------
 class Solver1D:
@@ -214,6 +215,7 @@ class Solver1DODE(Solver1D):
         self.st.set_v(self.kwargs['v'], 0)
         self.st.forward_state(0, self.tf.sqrt_m)
         self.logger.info('Initial state forward-transformed.')
+        analyze_matrix(self.tf.h_tilde)
 
     def run(self) -> Dict[str, Any]:
         """
@@ -353,7 +355,48 @@ class Solver1DLindblad(Solver1D):
         """
         self.logger.info('Solving Lindblad master equation.')
         initial_state = self.st.get_state(0)
-        self.st.states = np.array(self.tf.simulate(psi0=initial_state,time_list=self.times))
+        self.st.states = np.array(self.tf.simulate_lindblad(psi0=initial_state,time_list=self.times))
+        self.logger.info(f'Shape of st.states: {self.st.states.shape}')
+        self.logger.info('Lindblad master equation solved.')
+        self.logger.info(f'Time Length: {len(self.times)}')
+
+        _ = [self.st.inverse_state(i, self.tf.inv_sqrt_m @ self.tf.inv_t)
+         for i in range(len(self.times))]
+        self.logger.info('States inverse-transformed.')
+
+        self.data['field'] = self.st.get_dict()
+        return self.data
+
+class Solver1DLCU(Solver1D):
+    """
+    A subclass of Solver1D for solving with a LCU
+         solver.
+
+    Inherits from Solver1D.
+
+    Args:
+        logger (object): A logging instance to record the process and errors.
+        **kwargs: Arbitrary keyword arguments for configuration.
+    """
+
+    def __init__(self, base_data: object, logger: object, **kwargs) -> None:
+        super().__init__(base_data, logger, **kwargs)
+        self.st = StateProcessor(self.kwargs['nx'], self.kwargs['nt'], shift=1)
+        self.st.set_u(self.kwargs['u'], 0)
+        self.st.set_v(self.kwargs['v'], 0)
+        self.st.forward_state(0, self.tf.t @ self.tf.sqrt_m)
+        self.logger.info('Initial state forward-transformed.')
+
+    def run(self) -> Dict[str, Any]:
+        """
+        Runs LCU solver and processes the results.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing the field data and other results.
+        """
+        self.logger.info('Solving LCU.')
+        initial_state = self.st.get_state(0)
+        self.st.states = np.array(self.tf.simulate_lcu(psi0=initial_state,time_list=self.times))
         self.logger.info(f'Shape of st.states: {self.st.states.shape}')
         self.logger.info('Lindblad master equation solved.')
         self.logger.info(f'Time Length: {len(self.times)}')

@@ -33,6 +33,13 @@ from scipy.linalg import expm
 from qiskit_dynamics.solvers import Solver
 from qiskit.quantum_info import Operator
 
+from qiskit import QuantumCircuit, transpile
+from qiskit.quantum_info import Statevector
+from qiskit_aer import Aer, AerSimulator
+from qiskit.circuit import Gate
+from qiskit.circuit.library import UnitaryGate
+from qiskit.quantum_info import Pauli, SparsePauliOp
+
 # -------- CONSTANTS --------
 FORWARD_FD_COEFF: Dict[int, List[float]] = {
         1: [-1, 1],
@@ -109,8 +116,6 @@ class LindbladFromNonHermitian:
         if psi0.shape != (self.n,):
             raise ValueError(f"psi0 must be of shape ({self.n},)")
     
-        print("Running Lindblad simulation for times:", t_span)
-    
         result = self.solver.solve(
             t_span=[t_span[0], t_span[-1]],
             y0=np.outer(psi0, psi0.conj()),
@@ -148,6 +153,87 @@ class LindbladFromNonHermitian:
     
         return psi_list
 
+class LCU_NonHermitianSimulator:
+    def __init__(self, H_tilde: np.ndarray):
+        """
+        Initialize the simulator with a non-Hermitian matrix.
+        Decompose it as a linear combination of unitaries.
+        """
+        self.H_tilde = H_tilde
+        self.dim = H_tilde.shape[0]
+        self.num_qubits = int(np.ceil(np.log2(self.dim)))
+
+        # Normalize H_tilde to avoid overflow
+        norm = np.linalg.norm(H_tilde)
+        self.H_norm = H_tilde / norm
+        self.norm_factor = norm
+
+        # H_tilde is Hermitian or not, does not matter here
+        pauli_decomp = SparsePauliOp.from_operator(Operator(self.H_norm))
+        
+        # Get terms and coefficients
+        self.terms = [Operator(p) for p in pauli_decomp.paulis]
+        self.coeffs = pauli_decomp.coeffs
+        print(f'Number of terms: {len(self.terms)}')
+
+    def build_lcu_circuit(self, t: float) -> QuantumCircuit:
+        """
+        Build a quantum circuit that implements the LCU step using ancilla superposition and controlled unitaries.
+        Assumes self.terms is a list of unitary matrices (e.g., numpy arrays or Qiskit Operator),
+        and self.coeffs are real non-negative weights.
+        """
+        m = len(self.coeffs)
+        ancilla = int(np.ceil(np.log2(m)))
+        total_qubits = self.num_qubits + ancilla
+        qc = QuantumCircuit(total_qubits)
+    
+        # Prepare ancilla superposition weighted by sqrt(coeff / total)
+        norm = sum(self.coeffs)
+        angles = [np.sqrt(c / norm) for c in self.coeffs]
+    
+        # Use initialize to encode weighted superposition: |ψ⟩ = ∑ sqrt(α_j/Σα) |j⟩
+        from qiskit.quantum_info import Statevector
+        amp_vector = np.zeros(2 ** ancilla, dtype=complex)
+        amp_vector[:m] = angles
+        amp_vector /= np.linalg.norm(amp_vector)
+        qc.initialize(amp_vector, list(range(self.num_qubits, total_qubits)))
+    
+        # Apply each U_j controlled on ancilla state |j⟩
+        for j, Uj in enumerate(self.terms):
+            ctrl_state = format(j, f'0{ancilla}b')  # binary string of control state
+            ctrl_qubits = list(range(self.num_qubits, total_qubits))
+            target_qubits = list(range(self.num_qubits))
+    
+            # Convert Uj to a gate
+            gate = UnitaryGate(Uj, label=f'U{j}')
+    
+            # Create multi-controlled gate
+            from qiskit.circuit.library import MCMT
+            controlled_gate = gate.control(num_ctrl_qubits=ancilla, ctrl_state=ctrl_state)
+    
+            # Append controlled gate
+            qc.append(controlled_gate, ctrl_qubits + target_qubits)
+    
+        return qc
+
+
+    def simulate(self, psi0: np.ndarray, times: list):
+        """
+        Simulate the time evolution under LCU for given times.
+        """
+        if len(psi0) != self.dim:
+            raise ValueError("Initial state dimension does not match H_tilde")
+
+        results = []
+        for t in times:
+            circuit = self.build_lcu_circuit(t)
+            sv = Statevector.from_label('0' * self.num_qubits)
+            full_state = sv.tensor(Statevector(psi0))
+            evolved = full_state.evolve(circuit)
+            reduced = evolved.data[-self.dim:]  # trace out ancilla
+            results.append(reduced)
+
+        return results
 
 # -------- CLASSES --------
 class FDTransform1DA:
@@ -197,9 +283,15 @@ class FDTransform1DA:
 
         self.solver = LindbladFromNonHermitian(self.h_tilde)
 
-    def simulate(self, psi0, time_list):
+        self.lcu = LCU_NonHermitianSimulator(self.h_tilde)
+
+    def simulate_lindblad(self, psi0, time_list):
         """Simulate the Lindblad dynamics with optional initial state and time points."""
         return self.solver.simulate(psi0,t_span=time_list)
+
+    def simulate_lcu(self, psi0, time_list):
+        """Simulate the Lindblad dynamics with optional initial state and time points."""
+        return self.lcu.simulate(psi0,time_list)
 
     def get_z(self, length: int) -> np.ndarray:
         """
