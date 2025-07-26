@@ -154,68 +154,69 @@ class LindbladFromNonHermitian:
         return psi_list
 
 class LCU_NonHermitianSimulator:
-    def __init__(self, H_tilde: np.ndarray):
+    def __init__(self, H_tilde: np.ndarray, cond_threshold: float = 1e10, regularization_eps: float = 1e-6):
         """
         Initialize the simulator with a non-Hermitian matrix.
-        Decompose it as a linear combination of unitaries.
+        Automatically regularize if condition number is too large.
         """
-        self.H_tilde = H_tilde
+        self.H_tilde_original = H_tilde
         self.dim = H_tilde.shape[0]
         self.num_qubits = int(np.ceil(np.log2(self.dim)))
 
-        # Normalize H_tilde to avoid overflow
+        # --- SVD Decomposition ---
+        U, S, Vh = np.linalg.svd(H_tilde, full_matrices=True)
+        cond_number = S[0] / S[-1] if S[-1] > 0 else np.inf
+        print(f"[INFO] Condition number of H_tilde: {cond_number:.2e}")
+
+        if cond_number > cond_threshold:
+            print(f"[WARN] Ill-conditioned matrix detected (cond > {cond_threshold}). Applying regularization.")
+            S_reg = np.where(S < S[0] / cond_threshold, regularization_eps, S)
+            H_tilde = U @ np.diag(S_reg) @ Vh
+
+            residual = np.linalg.norm(H_tilde - self.H_tilde_original)
+            print(f"[INFO] Regularized H_tilde residual ‖H_reg - H‖ = {residual:.2e}")
+
+        # Normalize to avoid overflow
         norm = np.linalg.norm(H_tilde)
         self.H_norm = H_tilde / norm
         self.norm_factor = norm
 
-        # H_tilde is Hermitian or not, does not matter here
+        # Decompose into Pauli basis
         pauli_decomp = SparsePauliOp.from_operator(Operator(self.H_norm))
-        
-        # Get terms and coefficients
         self.terms = [Operator(p) for p in pauli_decomp.paulis]
         self.coeffs = pauli_decomp.coeffs
-        print(f'Number of terms: {len(self.terms)}')
+
+        print(f"[INFO] Number of terms in Pauli decomposition: {len(self.terms)}")
 
     def build_lcu_circuit(self, t: float) -> QuantumCircuit:
         """
         Build a quantum circuit that implements the LCU step using ancilla superposition and controlled unitaries.
-        Assumes self.terms is a list of unitary matrices (e.g., numpy arrays or Qiskit Operator),
-        and self.coeffs are real non-negative weights.
         """
         m = len(self.coeffs)
         ancilla = int(np.ceil(np.log2(m)))
         total_qubits = self.num_qubits + ancilla
         qc = QuantumCircuit(total_qubits)
-    
+
         # Prepare ancilla superposition weighted by sqrt(coeff / total)
         norm = sum(self.coeffs)
         angles = [np.sqrt(c / norm) for c in self.coeffs]
-    
-        # Use initialize to encode weighted superposition: |ψ⟩ = ∑ sqrt(α_j/Σα) |j⟩
-        from qiskit.quantum_info import Statevector
+
         amp_vector = np.zeros(2 ** ancilla, dtype=complex)
         amp_vector[:m] = angles
         amp_vector /= np.linalg.norm(amp_vector)
         qc.initialize(amp_vector, list(range(self.num_qubits, total_qubits)))
-    
+
         # Apply each U_j controlled on ancilla state |j⟩
         for j, Uj in enumerate(self.terms):
-            ctrl_state = format(j, f'0{ancilla}b')  # binary string of control state
+            ctrl_state = format(j, f'0{ancilla}b')
             ctrl_qubits = list(range(self.num_qubits, total_qubits))
             target_qubits = list(range(self.num_qubits))
-    
-            # Convert Uj to a gate
-            gate = UnitaryGate(Uj, label=f'U{j}')
-    
-            # Create multi-controlled gate
-            from qiskit.circuit.library import MCMT
-            controlled_gate = gate.control(num_ctrl_qubits=ancilla, ctrl_state=ctrl_state)
-    
-            # Append controlled gate
-            qc.append(controlled_gate, ctrl_qubits + target_qubits)
-    
-        return qc
 
+            gate = UnitaryGate(Uj, label=f'U{j}')
+            controlled_gate = gate.control(num_ctrl_qubits=ancilla, ctrl_state=ctrl_state)
+            qc.append(controlled_gate, ctrl_qubits + target_qubits)
+
+        return qc
 
     def simulate(self, psi0: np.ndarray, times: list):
         """
@@ -226,6 +227,7 @@ class LCU_NonHermitianSimulator:
 
         results = []
         for t in times:
+            print(f't = {t}')
             circuit = self.build_lcu_circuit(t)
             sv = Statevector.from_label('0' * self.num_qubits)
             full_state = sv.tensor(Statevector(psi0))
