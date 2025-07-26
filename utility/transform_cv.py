@@ -29,6 +29,7 @@ from typing import Dict, List
 
 # Other modules
 import numpy as np
+from scipy.linalg import expm
 from qiskit_dynamics.solvers import Solver
 from qiskit.quantum_info import Operator
 
@@ -89,43 +90,63 @@ class LindbladFromNonHermitian:
 
         return C_ops
 
-    def simulate(self, psi0: np.ndarray, t_span: np.ndarray, return_density: bool = False):
+    def simulate(self, psi0: np.ndarray, t_span: np.ndarray, return_density: bool = False,
+                 check_purity: bool = False, check_fidelity: bool = False) -> list:
         """
         Simulate the Lindblad evolution and return quantum states at specified times.
-    
+        
         Parameters:
-            psi0          : (n,) ndarray, initial state vector
-            t_span        : array-like, list of time points
-            return_density: if True, return list of density matrices
-                            if False, return list of dominant pure state vectors
-    
+        psi0            : (n,) ndarray, initial state vector
+        t_span          : array-like, list of time points
+        return_density  : if True, return list of density matrices
+                          if False, return list of dominant pure state vectors
+        check_purity    : if True, print Tr(rho^2) at each time step
+        check_fidelity  : if True, print fidelity with exp(-i H_eff t) @ psi0 at each step
+        
         Returns:
-            List of states (either density matrices or state vectors) at each time in t_span
+        List of states (either density matrices or state vectors) at each time in t_span
         """
         if psi0.shape != (self.n,):
             raise ValueError(f"psi0 must be of shape ({self.n},)")
     
-        print(t_span)
-        result = self.solver.solve(
-                t_span=[t_span[0],t_span[-1]], 
-                y0=np.outer(psi0, psi0.conj()), 
-                t_eval=t_span,
-                method="RK45"  # Ensures t_eval is respect
-                )
+        print("Running Lindblad simulation for times:", t_span)
     
-        # result.y has shape (len(t_span), n, n)
-        rho_list = result.y  # list of density matrices
+        result = self.solver.solve(
+            t_span=[t_span[0], t_span[-1]],
+            y0=np.outer(psi0, psi0.conj()),
+            t_eval=t_span,
+            method="RK45"  # Ensures t_eval is respected
+        )
+    
+        rho_list = result.y  # Shape: (len(t_span), n, n)
     
         if return_density:
+            if check_purity:
+                print("Purity check:")
+                for i, rho in enumerate(rho_list):
+                    purity = np.trace(rho @ rho).real
+                    print(f"t = {t_span[i]:.4f}: Tr(rho^2) = {purity:.6f}")
             return rho_list
-        else:
-            # Extract dominant eigenvector at each time point
-            psi_list = []
-            for rho in rho_list:
-                eigvals, eigvecs = np.linalg.eigh(rho)
-                psi = eigvecs[:, -1]  # eigenvector with largest eigenvalue
-                psi_list.append(psi)
-            return psi_list
+    
+        # Extract dominant eigenvector at each time point
+        psi_list = []
+        for i, rho in enumerate(rho_list):
+            eigvals, eigvecs = np.linalg.eigh(rho)
+            psi = eigvecs[:, -1]  # Eigenvector with largest eigenvalue
+            psi_list.append(psi)
+    
+            if check_purity:
+                purity = np.trace(rho @ rho).real
+                print(f"t = {t_span[i]:.4f}: Tr(rho^2) = {purity:.6f}")
+    
+            if check_fidelity:
+                # Use exp(-i H_eff t) @ psi0 to compare
+                H_eff = self.H - 0.5j * sum(Cj.data.conj().T @ Cj.data for Cj in self.C_ops)
+                exact_psi = expm(-1j * H_eff * t_span[i]) @ psi0
+                fid = np.abs(np.vdot(exact_psi, psi))**2
+                print(f"t = {t_span[i]:.4f}: Fidelity = {fid:.6f}")
+    
+        return psi_list
 
 
 # -------- CLASSES --------
