@@ -38,7 +38,7 @@ PATH_MULTIPLOT = './figures/forward_sim.png'
 PATH_CIRCUIT = './figures/circuit.png'
 
 # -------- FUNCTIONS --------
-def plot_multi(data, idx, shots=None, colors=['black', 'red', 'blue']):
+def plot_multi(data, idx, shots=None, colors=['black', 'red', 'blue', 'green']):
     """
     Plotting function for plotting multiple solvers at different time steps.
     

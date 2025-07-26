@@ -85,25 +85,48 @@ class LindbladFromNonHermitian:
         for lam, vec in zip(eigvals, eigvecs.T):
             if lam > 1e-12:
                 Cj = np.sqrt(2 * lam) * vec[:, np.newaxis]  # shape (n, 1)
-                #C_ops.append(Operator(Cj @ Cj.conj().T))     # shape (n, n)
-                C_ops.append(Operator(Cj.conj() @ Cj.T))     # shape (n, n)
+                C_ops.append(Operator(Cj @ Cj.conj().T))     # shape (n, n)
 
         return C_ops
 
-    def simulate(self, psi0: np.ndarray, t_span: np.ndarray):
+    def simulate(self, psi0: np.ndarray, t_span: np.ndarray, return_density: bool = False):
         """
-        Simulate time evolution under Lindblad equation
-
+        Simulate the Lindblad evolution and return quantum states at specified times.
+    
         Parameters:
-            psi0   : (n,) complex ndarray, initial state vector
-            t_span : 1D array of time points
-
+            psi0          : (n,) ndarray, initial state vector
+            t_span        : array-like, list of time points
+            return_density: if True, return list of density matrices
+                            if False, return list of dominant pure state vectors
+    
         Returns:
-            result : SolverResult from Qiskit Dynamics
+            List of states (either density matrices or state vectors) at each time in t_span
         """
         if psi0.shape != (self.n,):
             raise ValueError(f"psi0 must be of shape ({self.n},)")
-        return self.solver.solve(t_span=t_span, y0=np.outer(psi0,psi0.conj()))
+    
+        print(t_span)
+        result = self.solver.solve(
+                t_span=[t_span[0],t_span[-1]], 
+                y0=np.outer(psi0, psi0.conj()), 
+                t_eval=t_span,
+                method="RK45"  # Ensures t_eval is respect
+                )
+    
+        # result.y has shape (len(t_span), n, n)
+        rho_list = result.y  # list of density matrices
+    
+        if return_density:
+            return rho_list
+        else:
+            # Extract dominant eigenvector at each time point
+            psi_list = []
+            for rho in rho_list:
+                eigvals, eigvecs = np.linalg.eigh(rho)
+                psi = eigvecs[:, -1]  # eigenvector with largest eigenvalue
+                psi_list.append(psi)
+            return psi_list
+
 
 # -------- CLASSES --------
 class FDTransform1DA:
@@ -155,19 +178,7 @@ class FDTransform1DA:
 
     def simulate(self, psi0, time_list):
         """Simulate the Lindblad dynamics with optional initial state and time points."""
-        result = self.solver.simulate(psi0,t_span=[time_list[0], time_list[-1]])
-        print(result.y.shape)
-        print(result.t.shape)
-
-        # result.y.shape = (7, 16, 16)
-        rho_t_list = result.y  # already a list of 16x16 matrices
-
-        # Extract dominant eigenvector (corresponding to the largest eigenvalue)
-        psi_t_list = [np.linalg.eigh(rho)[1][:, -1] for rho in rho_t_list]
-
-        # Normalize each state vector (just to be safe)
-        psi_t_list = [psi / np.linalg.norm(psi) for psi in psi_t_list]
-        return psi_t_list
+        return self.solver.simulate(psi0,t_span=time_list)
 
     def get_z(self, length: int) -> np.ndarray:
         """
