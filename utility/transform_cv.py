@@ -33,7 +33,8 @@ from scipy.linalg import expm
 from utility.non_hermitian_simulator import LindbladFromNonHermitian,\
         LCU_NonHermitianSimulator,\
         HermitianDilationSimulator,\
-        KrylovNonHermitianSimulator
+        KrylovNonHermitianSimulator,\
+        KrylovQuantumSimulator
 
 # -------- CONSTANTS --------
 FORWARD_FD_COEFF: Dict[int, List[float]] = {
@@ -98,6 +99,8 @@ class FDTransform1DA:
 
         self.krylov = KrylovNonHermitianSimulator(self.h_tilde)
 
+        self.krylovQ = KrylovQuantumSimulator(self.h_tilde)
+
     def simulate_lindblad(self, psi0, time_list):
         """Simulate the Lindblad dynamics with optional initial state and time points."""
         return self.solver.simulate(psi0,t_span=time_list)
@@ -111,6 +114,9 @@ class FDTransform1DA:
 
     def simulate_krylov(self, psi0, time_list):
         return self.krylov.simulate(psi0, time_list)
+
+    def simulate_krylovQ(self, psi0, time_list):
+        return self.krylovQ.simulate_quantum(psi0, time_list)
 
     def get_z(self, length: int) -> np.ndarray:
         """
