@@ -579,6 +579,91 @@ class Solver1DLCU(Solver1D):
         self.data['field'] = self.st.get_dict()
         return self.data
 
+class Solver1DSplit(Solver1D):
+    """
+    A subclass of Solver1D for local quantum computing simulations.
+
+    Inherits from Solver1D and adds specific methods for handling local simulations.
+
+    Args:
+        logger (object): A logging instance to record the process and errors.
+        **kwargs: Arbitrary keyword arguments for configuration.
+    """
+
+    def __init__(self, base_data: object, logger: object, **kwargs) -> None:
+        super().__init__(base_data, logger, **kwargs)
+        self.st = StateProcessor(self.kwargs['nx'], self.kwargs['nt'], shift=1)
+        self.st.set_u(self.kwargs['u'], 0)
+        self.st.set_v(self.kwargs['v'], 0)
+        self.st.forward_state(0, self.tf.t @ self.tf.sqrt_m)
+        self.circuit_groups = []
+        self.logger.info('Initial state transformed.')
+
+    def run(self) -> Dict[str, Any]:
+        """
+        Runs the local solver, including quantum circuit generation, execution, and tomography.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing the field data and other results.
+        """
+
+        self.logger.info('Initializing backend.')
+        backend = LocalBackend(self.logger,
+                               backend=None,
+                               fake=self.kwargs['backend']['fake'],
+                               method=self.kwargs['backend']['method'],
+                               seed=self.kwargs['backend']['seed'],
+                               shots=self.kwargs['backend']['shots'],
+                               optimization=self.kwargs['backend']['optimization'],
+                               resilience=self.kwargs['backend']['resilience'],
+                               local_transpilation = self.kwargs['backend']['local_transpilation'],
+                               max_parallel_experiments=0)
+        sampler, _ = backend.get_sampler()
+        self.logger.info('Backend initialized.')
+
+        initial_state = self.st.get_state(0)
+
+        self.logger.info(f'initial_state Norm: {np.linalg.norm(initial_state):.2e}')
+
+        self.logger.info('Generating circuits.')
+        circuit_gen = CircuitGen1DA(self.logger, backend.fake_backend)
+        self.circuit_groups = circuit_gen.tomography_circuits(
+            initial_state,
+            self.tf.h_herm,
+            self.times[1:],
+            self.kwargs['backend']['synthesis'],
+            self.kwargs['backend']['batch_size'],
+            self.kwargs['backend']['optimization'],
+            self.kwargs['backend']['seed'],
+            self.kwargs['backend']['local_transpilation'])
+
+        self.logger.info('Submitting jobs to backend.')
+        jobs = [sampler.run(circuits) for circuits in self.circuit_groups]
+        self.logger.info('Jobs submitted.')
+        _wait_for_completion(jobs, self.logger)
+        result_groups = [job.result() for job in jobs]
+        self.logger.info('Jobs completed.')
+
+        self.logger.info('Running tomography.')
+        tomo = TomographyReal(self.logger, self.kwargs['backend']['fitter'])
+        observables = list(product("ZX", repeat=int(np.log2(self.tf.h_herm.shape[0]))))
+        self.logger.debug(f'Observables: {observables}')
+        states_raw = tomo.run_tomography(result_groups, observables, self.times[1:])
+        self.logger.info('Tomography completed.')
+
+        self.st.states = np.real(parallel_transport(states_raw, initial_state))
+
+        for i, time in enumerate(self.times):
+            self.st.states[i] = scipy.linalg.expm(time*-1j*self.tf.h_non_herm) @ self.st.states[i]
+
+        self.logger.info('State polarization corrected.')
+        _ = [self.st.inverse_state(i, self.tf.inv_sqrt_m @ self.tf.inv_t)
+         for i in range(1, len(self.times))]
+        self.logger.info('States inverse-transformed.')
+
+        self.data['field'] = self.st.get_dict()
+        return self.data
+
 class Solver1DLocal(Solver1D):
     """
     A subclass of Solver1D for local quantum computing simulations.
