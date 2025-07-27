@@ -87,7 +87,8 @@ class FDTransform1DA:
         # Define hamiltonian
         self.h_tilde = self.get_h_tilde(scale(self.u, cols=1), self.get_z(self.nx+1), scale(inv_m, rows=1, cols=1))
 
-        self.h_test = self.get_h_test(scale(self.u, cols=1), self.get_z(self.nx+1))
+        self.h_herm = self.get_h_herm(scale(self.u, cols=1), self.get_z(self.nx+1))
+        self.h_non_herm = self.get_h_non_herm(self.get_z(self.nx+1), scale(inv_m, rows=1, cols=1))
 
         self.h_embed = self.get_embed_hamiltonian(self.h_tilde)
 
@@ -298,7 +299,7 @@ class FDTransform1DA:
         """
         return np.block([[z, 1j*u],[-1j*u.T, -1j*inv_m]])
 
-    def get_h_test(self, u: np.ndarray, z: np.ndarray) -> np.ndarray:
+    def get_h_herm(self, u: np.ndarray, z: np.ndarray) -> np.ndarray:
         """
         Calculates the Hermitian hamiltonian matrix.
         
@@ -310,6 +311,19 @@ class FDTransform1DA:
             np.ndarray: The hamiltonian matrix.
         """
         return np.block([[z, 1j*u],[-1j*u.T, z]])
+
+    def get_h_non_herm(self, z: np.ndarray, inv_m: np.ndarray) -> np.ndarray:
+        """
+        Calculates the non-Hermitian hamiltonian matrix.
+        
+        Args:
+            u (np.ndarray): The Cholesky decomposition matrix.
+            z (np.ndarray): The zero matrix.
+            
+        Returns:
+            np.ndarray: The hamiltonian matrix.
+        """
+        return np.block([[z, z],[z, -1j*inv_m]])
 
     def get_embed_hamiltonian(self, h_tilde: np.ndarray) -> np.ndarray:
         """
@@ -343,7 +357,8 @@ class FDTransform1DA:
             dict: The transformation matrices.
         """
         return {'h_tilde': self.h_tilde,
-                'h_test': self.h_test,
+                'h_herm': self.h_herm,
+                'h_non_herm': self.h_non_herm,
                 'h_embed': self.h_embed,
                 't': self.t,
                 'inv_t': self.inv_t,

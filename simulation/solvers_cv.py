@@ -96,7 +96,8 @@ class Solver1D:
         self.logger.info(f'norm of T: {np.linalg.norm(self.tf.t):.2e}')
         self.logger.info(f'norm of T^{-1}: {np.linalg.norm(self.tf.inv_t):.2e}')
         self.logger.info(f'norm of H_tilde: {np.linalg.norm(self.tf.h_tilde):.2e}')
-        self.logger.info(f'norm of H_test: {np.linalg.norm(self.tf.h_test):.2e}')
+        self.logger.info(f'norm of H_herm: {np.linalg.norm(self.tf.h_herm):.2e}')
+        self.logger.info(f'norm of H_non_herm: {np.linalg.norm(self.tf.h_non_herm):.2e}')
         self.logger.info(f'norm of H_embed: {np.linalg.norm(self.tf.h_embed):.2e}')
         self.logger.info('---E-REPORT---'*3)
         self.data['transform'] = self.tf.get_dict()
@@ -629,7 +630,8 @@ class Solver1DLocal(Solver1D):
 
         self.logger.info(f'initial_state Norm: {np.linalg.norm(initial_state):.2e}')
         self.logger.info(f'Psi0 Norm: {np.linalg.norm(Psi_0):.2e}')
-        self.logger.info(f'Htest Norm: {np.linalg.norm(self.tf.h_test):.2e}')
+        self.logger.info(f'H_herm Norm: {np.linalg.norm(self.tf.h_herm):.2e}')
+        self.logger.info(f'H_non_herm Norm: {np.linalg.norm(self.tf.h_non_herm):.2e}')
         self.logger.info(f'Htilde Norm: {np.linalg.norm(self.tf.h_tilde):.2e}')
         self.logger.info(f'Hembed Norm: {np.linalg.norm(self.tf.h_embed):.2e}')
 
