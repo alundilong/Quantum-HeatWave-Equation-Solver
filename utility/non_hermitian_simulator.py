@@ -201,7 +201,7 @@ class LCU_NonHermitianSimulator:
         return results
 
 class HermitianDilationSimulator:
-    def __init__(self, H_q: np.ndarray, m0: float = 2.0, evolution_time: float = 1e-18):
+    def __init__(self, H_q: np.ndarray, m0: float = 2.0, evolution_time: float = 1.0e-3):
         """
         Initialize the Hermitian Dilation Simulator for a time-independent non-Hermitian Hamiltonian.
 
@@ -325,7 +325,6 @@ class KrylovNonHermitianSimulator:
             psi_t_list: Array of evolved states at each time (len(time_list), n).
         """
         # Save the complex matrix
-        np.save('psi0.npy', psi0)
         V, Hm = self._arnoldi_iteration(psi0)
         e1 = np.zeros((Hm.shape[0],), dtype=complex)
         e1[0] = 1.0
@@ -334,6 +333,7 @@ class KrylovNonHermitianSimulator:
         for t in time_list:
             psi_t_sub = expm(-1j * Hm * t) @ e1
             psi_t = V @ psi_t_sub
-            psi_t_list.append(psi_t / norm(psi_t))
+            psi_t_list.append(psi_t)
+            #psi_t_list.append(psi_t / norm(psi_t))
         return np.array(psi_t_list)
     

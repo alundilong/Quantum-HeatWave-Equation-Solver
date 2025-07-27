@@ -266,8 +266,9 @@ class Solver1DEXP(Solver1D):
         self.logger.info('Solving matrix exponential.')
         initial_state = self.st.get_state(0)
         self.st.states = np.array([
-            np.real(scipy.linalg.expm(time * -1j * self.tf.h_tilde) @ initial_state)
+            scipy.linalg.expm(time * -1j * self.tf.h_tilde) @ initial_state
             for time in self.times])
+        #self.st.states = np.array([v / np.linalg.norm(v) for v in self.st.states])
         self.logger.info(f'Shape of st.states: {self.st.states.shape}')
         self.logger.info('Matrix exponential solved.')
 
