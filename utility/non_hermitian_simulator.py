@@ -707,3 +707,54 @@ if __name__ == "__main__":
         print(f"Block-encoding test failed: {e}")
 
     print("\nAll tests completed!")
+
+class NaimarkDilationSimulator:
+    def __init__(self, H_q: np.ndarray):
+        """
+        Simulate non-Hermitian dynamics using true Naimark dilation for normal matrices.
+
+        Args:
+            H_q: A normal (non-Hermitian) matrix.
+        """
+        self.H_q = H_q
+        self.dim = H_q.shape[0]
+        assert np.allclose(H_q @ H_q.conj().T, H_q.conj().T @ H_q), "H_q must be normal"
+        self.U, self.Lambda = self._diagonalize(H_q)
+
+    def _diagonalize(self, H):
+        """Diagonalize a normal matrix."""
+        eigvals, eigvecs = eig(H)
+        return eigvecs, np.diag(eigvals)
+
+    def simulate(self, psi0: np.ndarray, times: np.ndarray):
+        """
+        Simulate the evolution using spectral decomposition.
+
+        Args:
+            psi0: Initial state vector.
+            times: Array of time points.
+
+        Returns:
+            psi_t: Array of evolved states at each time point.
+        """
+        U, Lambda = self.U, self.Lambda
+        U_dag = U.conj().T
+        psi_t = []
+        for t in times:
+            Ut = U @ np.diag(np.exp(-1j * np.diag(Lambda) * t)) @ U_dag
+            psi_t.append(Ut @ psi0)
+        return np.array(psi_t)
+
+    def exact_solution(self, psi0: np.ndarray, times: np.ndarray):
+        """
+        Compute the exact solution using matrix exponential.
+
+        Args:
+            psi0: Initial state vector.
+            times: Array of time points.
+
+        Returns:
+            psi_t_exact: Array of evolved states at each time point.
+        """
+        psi_t_exact = [expm(-1j * self.H_q * t) @ psi0 for t in times]
+        return np.array(psi_t_exact)
