@@ -36,7 +36,7 @@ import numpy as np
 
 # Own modules
 from config.logger import Logger
-from utility.plotting_cv import plot_multi, plot_medium, plot_initial, plot_error, plot_circuit
+from utility.plotting_hc import plot_multi, plot_medium, plot_initial, plot_error, plot_circuit
 from .solvers_hc import Solver1DODE, \
         Solver1DEXP, \
         Solver1DImaginary, \
@@ -74,7 +74,7 @@ class ForwardExperiment1D:
             self.logger.info(f'Created experiment with time stamp: {self.timestamp}.\n')
 
     def add_solver(self, solver: str, dx: float, nx: int, dt: float,  nt: int, order: int,
-                   bcs: dict, alpha: np.ndarray, tau: np.ndarray,
+                   bcs: dict, alpha: np.ndarray, 
                    u: np.ndarray, v: np.ndarray, backend: dict):
         """
         Add a 1D solver to the experiment.
@@ -89,7 +89,6 @@ class ForwardExperiment1D:
             order (int): FD Order of the solver.
             bcs (dict): Boundary conditions.
             alpha (np.ndarray): Medium elastic moduli.
-            tau (np.ndarray): Medium densities.
             u (np.ndarray): Initial condition for positions.
             v (np.ndarray): Initial condition for velocities.
             backend (dict): Backend configuration.
@@ -120,7 +119,6 @@ class ForwardExperiment1D:
             'order': order,
             'bcs': bcs,
             'alpha': alpha,
-            'tau': tau,
             'u': u,
             'v': v,
             'backend': backend

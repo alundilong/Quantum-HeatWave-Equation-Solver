@@ -95,7 +95,7 @@ class ThermalMediumHCProcessor(ProcessorBase):
     """
     Class that processes the medium properties of a quantum experiment.
     """
-    def __init__(self, n_alpha: int, n_tau: int) -> None:
+    def __init__(self, n_alpha: int) -> None:
         super().__init__(n_alpha, n_alpha, 1) # Time-invariant medium
 
     def set_alpha(self, values: list) -> None:

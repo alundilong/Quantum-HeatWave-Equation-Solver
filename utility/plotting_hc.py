@@ -54,10 +54,10 @@ def plot_multi(data, idx, shots=None, colors=['black', 'red', 'blue', 'green', '
 
     # Read data (Assuming local = noise free, cloud = quantum computer !) TODO: Fix this
     settings = data[0]['settings']
-    times, tau, alpha = data[0]['times'], settings['tau'], settings['alpha']
+    times, alpha = data[0]['times'], settings['alpha']
     bcs, nx = settings['bcs'], settings['nx']
-    tau_lim = (0, 6)
     alpha_lim = (0, 3)
+    tau_lim = (0, 3)
     field_lim = (-1.2, 1.2)
     digits = 4
 
@@ -94,7 +94,7 @@ def plot_multi(data, idx, shots=None, colors=['black', 'red', 'blue', 'green', '
 
     # Prepare medium
     medium_fields = []
-    for d in [alpha, tau]:
+    for d in [alpha, alpha]:
         field = np.zeros(nx+2)
         field[1:-1] = d if len(d) == nx else d[:-1]
         field[0] = d[0]

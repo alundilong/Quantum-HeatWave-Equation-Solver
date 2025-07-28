@@ -85,10 +85,9 @@ class Solver1D:
         self.logger.info(f'norm of D: {np.linalg.norm(self.tf.d):.2e}')
         self.logger.info(f'norm of T: {np.linalg.norm(self.tf.t):.2e}')
         self.logger.info(f'norm of T^{-1}: {np.linalg.norm(self.tf.inv_t):.2e}')
-        self.logger.info(f'norm of H_tilde: {np.linalg.norm(self.tf.h_tilde):.2e}')
+        self.logger.info(f'norm of H_emb: {np.linalg.norm(self.tf.h_emb):.2e}')
         self.logger.info(f'norm of H_herm: {np.linalg.norm(self.tf.h_herm):.2e}')
         self.logger.info(f'norm of H_non_herm: {np.linalg.norm(self.tf.h_non_herm):.2e}')
-        self.logger.info(f'norm of H_embed: {np.linalg.norm(self.tf.h_embed):.2e}')
         self.logger.info('---E-REPORT---'*3)
         self.data['transform'] = self.tf.get_dict()
         self.logger.info('Calculation completed.')
@@ -209,7 +208,7 @@ class Solver1DODE(Solver1D):
             Dict[str, Any]: A dictionary containing the field data and other results.
         """
         self.logger.info('Solving ODE.')
-        self.st.states = solve_ivp(lambda t, y: self.tf.h_emb @ y, (0, self.times[-1]),
+        self.st.states = solve_ivp(lambda t, y: self.tf.q @ y, (0, self.times[-1]),
                 self.st.get_state(0), 
                 t_eval=self.times,
                 method='Radau').y.T

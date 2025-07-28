@@ -60,11 +60,14 @@ class FDTransform1DA:
 
         # Define cholesky decomposition
         self.u = self.get_u(self.alpha, self.d)
+        print(self.u.shape)
 
         # Define stiffness matrix
         self.l = self.get_l(self.u)
+        print(self.l.shape)
 
-        self.m = self.get_m(self.l,scale(self.get_i(self.nx), rows=1))
+        self.m = self.get_m(self.l, self.get_i(self.nx), self.get_z(self.nx))
+        print(self.m.shape)
 
         # Define transformation matrices
         self.t = self.get_t(self.u, scale(self.get_z(self.nx), rows=1),
@@ -72,10 +75,12 @@ class FDTransform1DA:
 
         z = self.get_z(self.nx)
         i = self.get_i(self.nx)
-        self.i = np.block([i,z],[z,i])
+        self.i = np.block([[i,z],[z,i]])
+        print(self.i.shape)
 
         self.inv_t = self.get_inv_t(self.t)
 
+        self.q = self.get_q(self.l, self.get_z(self.nx), self.get_i(self.nx))
         # Define hamiltonian
         self.h_emb = self.get_h_emb(scale(self.u, cols=1), self.get_z(self.nx+1))
 
@@ -124,7 +129,7 @@ class FDTransform1DA:
         return (1/dx) * (1/order) * np.sum([np.diag(np.full(length-k, c), k=-k)
                        for k, c in enumerate(FORWARD_FD_COEFF[order])], axis=0)
 
-    def get_u(self, tau: np.ndarray, alpha: np.ndarray, d: np.ndarray) -> np.ndarray:
+    def get_u(self, alpha: np.ndarray, d: np.ndarray) -> np.ndarray:
         """
         Calculates the analytical Cholesky decomposition of
         the FD operator with the medium parameters.
@@ -137,7 +142,7 @@ class FDTransform1DA:
             np.ndarray: The analytic Cholesky decomposition matrix.
         """
 
-        return np.diag(np.sqrt(np.array(alpha))) @ d)
+        return np.diag(np.sqrt(np.array(alpha))) @ d
 
     def get_l(self, u: np.ndarray)  -> np.ndarray:
         """
@@ -191,7 +196,20 @@ class FDTransform1DA:
         """
         return np.block([[z, 1j*u],[-1j*u.T, z]])
 
-    def get_m(self, l: np.ndarray, i: np.ndarray) -> np.ndarray:
+    def get_q(self, l: np.ndarray, z: np.ndarray, i: np.ndarray) -> np.ndarray:
+        """
+        Calculates the non-Hermitian hamiltonian matrix.
+        
+        Args:
+            u (np.ndarray): The Cholesky decomposition matrix.
+            z (np.ndarray): The zero matrix.
+            
+        Returns:
+            np.ndarray: The hamiltonian matrix.
+        """
+        return np.block([[z, i],[l, z]])
+
+    def get_m(self, l: np.ndarray, i: np.ndarray, z: np.ndarray) -> np.ndarray:
         """
         Calculates the non-Hermitian hamiltonian matrix.
         
@@ -217,10 +235,9 @@ class FDTransform1DA:
                 'l': self.l,
                 'm': self.m,
                 'i': self.i,
+                'q': self.q,
                 't': self.t,
                 'inv_t': self.inv_t,
-                'k': self.k,
-                'q': self.q,
                 'u': self.u,
                 'd': self.d
                 }
