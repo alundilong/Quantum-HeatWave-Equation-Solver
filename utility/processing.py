@@ -91,6 +91,40 @@ class ThermalMediumProcessor(ProcessorBase):
         return {'alpha': self.values_1,
                 'tau': self.values_2}
 
+class ThermalMediumHCProcessor(ProcessorBase):
+    """
+    Class that processes the medium properties of a quantum experiment.
+    """
+    def __init__(self, n_alpha: int, n_tau: int) -> None:
+        super().__init__(n_alpha, n_alpha, 1) # Time-invariant medium
+
+    def set_alpha(self, values: list) -> None:
+        """
+        Set the thermal diffusivity  values of the medium.
+        
+        Args:
+            values (list): The thermal diffusivity values of the medium.
+        """
+        self._set_val1(values, 0)
+
+    def get_medium(self) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Get the thermal diffusivity values of the medium.
+        
+        Returns:
+            tuple([np.ndarray, np.ndarray]): The thermal diffusivity, 0.
+        """
+        return self._get_vals(0)
+
+    def get_dict(self) -> dict:
+        """
+        Get the thermal diffusivity
+        
+        Returns:
+            dict: The thermal diffusivity
+        """
+        return {'alpha': self.values_1}
+
 class MediumProcessor(ProcessorBase):
     """
     Class that processes the medium properties of a quantum experiment.
