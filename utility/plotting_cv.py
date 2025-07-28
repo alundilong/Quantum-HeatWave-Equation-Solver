@@ -72,7 +72,9 @@ def plot_multi(data, idx, shots=None, colors=['black', 'red', 'blue', 'green', '
             solv_list.append(f'Emb Matrix Exponential Solver {apx}')
         elif d['settings']['solver'] == 'exp_emb2':
             solv_list.append(f'Emb2 Matrix Exponential Solver {apx}')
-        elif d['settings']['solver'] == 'split' and not d['settings']['backend']['fake']:
+        elif d['settings']['solver'] == 'split':
+            solv_list.append(f'Quantum Split Simulator {apx}')
+        elif d['settings']['solver'] == 'splitQ' and not d['settings']['backend']['fake']:
             solv_list.append(f'Quantum Split Simulator {apx}')
         elif d['settings']['solver'] == 'dialation':
             solv_list.append(f'Dialation Solver {apx}')

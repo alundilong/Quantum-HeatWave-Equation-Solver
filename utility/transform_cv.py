@@ -63,6 +63,7 @@ class FDTransform1DA:
 
         # Define FD operator
         self.d = boundary(scale(self.get_d(self.order, self.nx, self.dx), rows=1), self.bcs)
+        print(self.d)
 
         # Define mass-like matrices(lagging coefficient)
         self.sqrt_m = self.get_sqrt_m(self.tau, self.get_z(self.nx))
