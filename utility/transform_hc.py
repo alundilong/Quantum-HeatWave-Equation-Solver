@@ -60,14 +60,11 @@ class FDTransform1DA:
 
         # Define cholesky decomposition
         self.u = self.get_u(self.alpha, self.d)
-        print(self.u.shape)
 
         # Define stiffness matrix
         self.l = self.get_l(self.u)
-        print(self.l.shape)
 
         self.m = self.get_m(self.l, self.get_i(self.nx), self.get_z(self.nx))
-        print(self.m.shape)
 
         # Define transformation matrices
         self.t = self.get_t(self.u, scale(self.get_z(self.nx), rows=1),
@@ -76,7 +73,6 @@ class FDTransform1DA:
         z = self.get_z(self.nx)
         i = self.get_i(self.nx)
         self.i = np.block([[i,z],[z,i]])
-        print(self.i.shape)
 
         self.inv_t = self.get_inv_t(self.t)
 
@@ -84,9 +80,9 @@ class FDTransform1DA:
         # Define hamiltonian
         self.h_emb = self.get_h_emb(scale(self.u, cols=1), self.get_z(self.nx+1))
 
-        H = 1j*self.l
-        self.h_herm = 0.5*(H + H.conj())
-        self.h_non_herm = 0.5*(H - H.conj())
+        H = 1j*self.q
+        self.h_herm = 0.5*(H + H.conj().T)
+        self.h_non_herm = 0.5*(H - H.conj().T)
 
     def get_z(self, length: int) -> np.ndarray:
         """

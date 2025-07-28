@@ -239,7 +239,7 @@ class Solver1DEXP(Solver1D):
         self.st = StateProcessor(self.kwargs['nx'], self.kwargs['nt'], shift=1)
         self.st.set_u(self.kwargs['u'], 0)
         self.st.set_v(self.kwargs['v'], 0)
-        self.st.forward_state(0, self.tf.i)
+        self.st.forward_state(0, self.tf.t)
         self.logger.info('Initial state forward-transformed.')
 
     def run(self) -> Dict[str, Any]:
@@ -257,7 +257,7 @@ class Solver1DEXP(Solver1D):
         self.logger.info(f'Shape of st.states: {self.st.states.shape}')
         self.logger.info('Matrix exponential solved.')
 
-        _ = [self.st.inverse_state(i, self.tf.i)
+        _ = [self.st.inverse_state(i, self.tf.inv_t)
          for i in range(len(self.times))]
         self.logger.info('States inverse-transformed.')
 
@@ -485,7 +485,7 @@ class Solver1DSplit(Solver1D):
 
     def __init__(self, base_data: object, logger: object, **kwargs) -> None:
         super().__init__(base_data, logger, **kwargs)
-        self.st = StateProcessor(self.kwargs['nx'], self.kwargs['nt'], shift=1)
+        self.st = StateProcessor(self.kwargs['nx'], self.kwargs['nt'], shift=0)
         self.st.set_u(self.kwargs['u'], 0)
         self.st.set_v(self.kwargs['v'], 0)
         self.st.forward_state(0, self.tf.i)
@@ -501,14 +501,13 @@ class Solver1DSplit(Solver1D):
         self.logger.info('Solving Hermitian Part.')
         initial_state = self.st.get_state(0)
         self.st.states = np.array([
-            scipy.linalg.expm(time * -1j * self.tf.h_herm) @ initial_state
+            scipy.linalg.expm(time * -1j * (self.tf.h_herm+self.tf.h_non_herm)) @ initial_state
             for time in self.times])
-        #self.st.states = np.array([v / np.linalg.norm(v) for v in self.st.states])
         self.logger.info(f'Shape of st.states: {self.st.states.shape}')
         self.logger.info('Hermian Part solved.')
 
-        for i, time in enumerate(self.times):
-            self.st.states[i] = scipy.linalg.expm(time*-1j*self.tf.h_non_herm) @ self.st.states[i]
+        #for i, time in enumerate(self.times):
+        #    self.st.states[i] = scipy.linalg.expm(time*-1j*self.tf.h_non_herm) @ self.st.states[i]
 
         _ = [self.st.inverse_state(i, self.tf.i)
          for i in range(len(self.times))]
