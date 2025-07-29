@@ -80,9 +80,9 @@ class FDTransform1DA:
         # Define hamiltonian
         self.h_emb = self.get_h_emb(scale(self.u, cols=1), self.get_z(self.nx+1))
 
-        H = 1j*self.q
-        self.h_herm = 0.5*(H + H.conj().T)
-        self.h_non_herm = 0.5*(H - H.conj().T)
+        self.h = 1j*self.l
+        self.h_herm = 0.5*(self.h + self.h.conj().T)
+        self.h_non_herm = 0.5*(self.h - self.h.conj().T)
 
     def get_z(self, length: int) -> np.ndarray:
         """
@@ -228,6 +228,7 @@ class FDTransform1DA:
         return {'h_emb': self.h_emb,
                 'h_herm': self.h_herm,
                 'h_non_herm': self.h_non_herm,
+                'h': self.h,
                 'l': self.l,
                 'm': self.m,
                 'i': self.i,

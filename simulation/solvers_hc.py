@@ -107,7 +107,7 @@ class Solver1D:
         """
 
         assert self.kwargs['nx'] > 0, 'nx must be greater than zero'
-        assert np.log2(self.kwargs['nx']+1) % 1 == 0, 'nx must be a power of two minus one'
+        assert np.log2(self.kwargs['nx']) % 1 == 0, 'nx must be a power of two minus one'
         assert self.kwargs['nx'] == len(self.kwargs['alpha'])-1,'length of alpha \
             must be one more than nx'
         assert np.all(np.array(self.kwargs['alpha']) > 0), 'alpha must be positive'
@@ -208,8 +208,10 @@ class Solver1DODE(Solver1D):
             Dict[str, Any]: A dictionary containing the field data and other results.
         """
         self.logger.info('Solving ODE.')
-        self.st.states = solve_ivp(lambda t, y: self.tf.q @ y, (0, self.times[-1]),
-                self.st.get_state(0), 
+        initial_state = self.st.get_state(0)
+        n = len(initial_state)//2
+        self.st.states[:,:n] = solve_ivp(lambda t, y: self.tf.l @ y, (0, self.times[-1]),
+                initial_state[:n], 
                 t_eval=self.times,
                 method='Radau').y.T
         self.logger.info('ODE solved.')
@@ -236,10 +238,10 @@ class Solver1DEXP(Solver1D):
 
     def __init__(self, base_data: object, logger: object, **kwargs) -> None:
         super().__init__(base_data, logger, **kwargs)
-        self.st = StateProcessor(self.kwargs['nx'], self.kwargs['nt'], shift=1)
+        self.st = StateProcessor(self.kwargs['nx'], self.kwargs['nt'], shift=0)
         self.st.set_u(self.kwargs['u'], 0)
         self.st.set_v(self.kwargs['v'], 0)
-        self.st.forward_state(0, self.tf.t)
+        self.st.forward_state(0, self.tf.i)
         self.logger.info('Initial state forward-transformed.')
 
     def run(self) -> Dict[str, Any]:
@@ -251,13 +253,14 @@ class Solver1DEXP(Solver1D):
         """
         self.logger.info('Solving matrix exponential.')
         initial_state = self.st.get_state(0)
-        self.st.states = np.array([
-            scipy.linalg.expm(time * -1j * self.tf.h_emb) @ initial_state
+        n = len(initial_state)//2
+        self.st.states[:,:n] = np.array([
+            scipy.linalg.expm(time * -1j * self.tf.h) @ initial_state[:n]
             for time in self.times])
         self.logger.info(f'Shape of st.states: {self.st.states.shape}')
         self.logger.info('Matrix exponential solved.')
 
-        _ = [self.st.inverse_state(i, self.tf.inv_t)
+        _ = [self.st.inverse_state(i, self.tf.i)
          for i in range(len(self.times))]
         self.logger.info('States inverse-transformed.')
 
@@ -352,125 +355,6 @@ class Solver1DImaginaryQ(Solver1D):
         self.data['field'] = self.st.get_dict()
         return self.data
 
-class Solver1DEmb(Solver1D):
-    """
-    A subclass of Solver1D for solving with a classical
-        Matrix exponential time evolution solver.
-
-    Inherits from Solver1D.
-
-    Args:
-        logger (object): A logging instance to record the process and errors.
-        **kwargs: Arbitrary keyword arguments for configuration.
-    """
-
-    def __init__(self, base_data: object, logger: object, **kwargs) -> None:
-        super().__init__(base_data, logger, **kwargs)
-        self.st = StateProcessor(self.kwargs['nx'], self.kwargs['nt'], shift=1)
-        self.st.set_u(self.kwargs['u'], 0)
-        self.st.set_v(self.kwargs['v'], 0)
-        self.st.forward_state(0, self.tf.i)
-        self.logger.info('Initial state forward-transformed.')
-
-    def run(self) -> Dict[str, Any]:
-        """
-        Runs the Embedding solver and processes the results.
-
-        Returns:
-            Dict[str, Any]: A dictionary containing the field data and other results.
-        """
-        self.logger.info('Solving Embedding.')
-        initial_state = self.st.get_state(0)
-        self.st.states = np.array([
-            np.real(scipy.linalg.expm(time * -1j * self.tf.h_emb) @ Psi_0)
-            for time in self.times])
-        self.logger.info(f'Shape of st.states: {self.st.states.shape}')
-        self.logger.info('Embedding solved.')
-
-        _ = [self.st.inverse_state(i, self.tf.i)
-         for i in range(len(self.times))]
-        self.logger.info('States inverse-transformed.')
-
-        self.data['field'] = self.st.get_dict()
-        return self.data
-
-class Solver1DEmbQ(Solver1D):
-    """
-    A subclass of Solver1D for local quantum computing simulations.
-
-    Inherits from Solver1D and adds specific methods for handling local simulations.
-
-    Args:
-        logger (object): A logging instance to record the process and errors.
-        **kwargs: Arbitrary keyword arguments for configuration.
-    """
-
-    def __init__(self, base_data: object, logger: object, **kwargs) -> None:
-        super().__init__(base_data, logger, **kwargs)
-        self.st = StateProcessor(self.kwargs['nx'], self.kwargs['nt'], shift=1)
-        self.st.set_u(self.kwargs['u'], 0)
-        self.st.set_v(self.kwargs['v'], 0)
-        self.st.forward_state(0, self.tf.t @ self.tf.sqrt_m)
-        self.circuit_groups = []
-        self.logger.info('Initial state transformed.')
-
-    def run(self) -> Dict[str, Any]:
-        """
-        Runs the local solver, including quantum circuit generation, execution, and tomography.
-
-        Returns:
-            Dict[str, Any]: A dictionary containing the field data and other results.
-        """
-
-        self.logger.info('Initializing backend.')
-        backend = LocalBackend(self.logger,
-                               backend=None,
-                               fake=self.kwargs['backend']['fake'],
-                               method=self.kwargs['backend']['method'],
-                               seed=self.kwargs['backend']['seed'],
-                               shots=self.kwargs['backend']['shots'],
-                               optimization=self.kwargs['backend']['optimization'],
-                               resilience=self.kwargs['backend']['resilience'],
-                               local_transpilation = self.kwargs['backend']['local_transpilation'],
-                               max_parallel_experiments=0)
-        sampler, _ = backend.get_sampler()
-        self.logger.info('Backend initialized.')
-
-        self.logger.info('Generating circuits.')
-        circuit_gen = CircuitGen1DA(self.logger, backend.fake_backend)
-        self.circuit_groups = circuit_gen.tomography_circuits(
-            self.st.get_state(0),
-            self.tf.h_emb,
-            self.times[1:],
-            self.kwargs['backend']['synthesis'],
-            self.kwargs['backend']['batch_size'],
-            self.kwargs['backend']['optimization'],
-            self.kwargs['backend']['seed'],
-            self.kwargs['backend']['local_transpilation'])
-
-        self.logger.info('Submitting jobs to backend.')
-        jobs = [sampler.run(circuits) for circuits in self.circuit_groups]
-        self.logger.info('Jobs submitted.')
-        _wait_for_completion(jobs, self.logger)
-        result_groups = [job.result() for job in jobs]
-        self.logger.info('Jobs completed.')
-
-        self.logger.info('Running tomography.')
-        tomo = TomographyReal(self.logger, self.kwargs['backend']['fitter'])
-        observables = list(product("ZX", repeat=int(np.log2(self.tf.h_emb.shape[0]))))
-        self.logger.debug(f'Observables: {observables}')
-        states_raw = tomo.run_tomography(result_groups, observables, self.times[1:])
-        self.logger.info('Tomography completed.')
-
-        self.st.states = np.real(parallel_transport(states_raw, self.st.get_state(0)))
-        self.logger.info('State polarization corrected.')
-        _ = [self.st.inverse_state(i, self.tf.i)
-         for i in range(1, len(self.times))]
-        self.logger.info('States inverse-transformed.')
-
-        self.data['field'] = self.st.get_dict()
-        return self.data
-
 class Solver1DSplit(Solver1D):
     """
     A subclass of Solver1D for solving with a
@@ -500,14 +384,15 @@ class Solver1DSplit(Solver1D):
         """
         self.logger.info('Solving Hermitian Part.')
         initial_state = self.st.get_state(0)
-        self.st.states = np.array([
-            scipy.linalg.expm(time * -1j * (self.tf.h_herm+self.tf.h_non_herm)) @ initial_state
+        n = len(initial_state)//2
+        self.st.states[:,:n] = np.array([
+            scipy.linalg.expm(time * -1j * self.tf.h_herm) @ initial_state[:n]
             for time in self.times])
         self.logger.info(f'Shape of st.states: {self.st.states.shape}')
         self.logger.info('Hermian Part solved.')
 
-        #for i, time in enumerate(self.times):
-        #    self.st.states[i] = scipy.linalg.expm(time*-1j*self.tf.h_non_herm) @ self.st.states[i]
+        for i, time in enumerate(self.times):
+            self.st.states[i,:n] = scipy.linalg.expm(time*-1j*self.tf.h_non_herm) @ self.st.states[i,:n]
 
         _ = [self.st.inverse_state(i, self.tf.i)
          for i in range(len(self.times))]
@@ -529,10 +414,10 @@ class Solver1DSplitQ(Solver1D):
 
     def __init__(self, base_data: object, logger: object, **kwargs) -> None:
         super().__init__(base_data, logger, **kwargs)
-        self.st = StateProcessor(self.kwargs['nx'], self.kwargs['nt'], shift=1)
+        self.st = StateProcessor(self.kwargs['nx'], self.kwargs['nt'], shift=0)
         self.st.set_u(self.kwargs['u'], 0)
         self.st.set_v(self.kwargs['v'], 0)
-        self.st.forward_state(0, self.tf.t @ self.tf.sqrt_m)
+        self.st.forward_state(0, self.tf.i)
         self.circuit_groups = []
         self.logger.info('Initial state transformed.')
 
@@ -559,13 +444,14 @@ class Solver1DSplitQ(Solver1D):
         self.logger.info('Backend initialized.')
 
         initial_state = self.st.get_state(0)
+        n = len(initial_state)//2
 
         self.logger.info(f'initial_state Norm: {np.linalg.norm(initial_state):.2e}')
 
         self.logger.info('Generating circuits.')
         circuit_gen = CircuitGen1DA(self.logger, backend.fake_backend)
         self.circuit_groups = circuit_gen.tomography_circuits(
-            initial_state,
+            initial_state[:n],
             self.tf.h_herm,
             self.times[1:],
             self.kwargs['backend']['synthesis'],
@@ -588,13 +474,13 @@ class Solver1DSplitQ(Solver1D):
         states_raw = tomo.run_tomography(result_groups, observables, self.times[1:])
         self.logger.info('Tomography completed.')
 
-        self.st.states = np.real(parallel_transport(states_raw, initial_state))
+        self.st.states[:,:n] = np.real(parallel_transport(states_raw, initial_state[:n]))
 
         for i, time in enumerate(self.times):
-            self.st.states[i] = scipy.linalg.expm(time*-1j*self.tf.h_non_herm) @ self.st.states[i]
+            self.st.states[i,:n] = scipy.linalg.expm(time*-1j*self.tf.h_non_herm) @ self.st.states[i,:n]
 
         self.logger.info('State polarization corrected.')
-        _ = [self.st.inverse_state(i, self.tf.inv_sqrt_m @ self.tf.inv_t)
+        _ = [self.st.inverse_state(i, self.tf.i)
          for i in range(1, len(self.times))]
         self.logger.info('States inverse-transformed.')
 

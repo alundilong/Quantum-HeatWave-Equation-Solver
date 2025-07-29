@@ -96,10 +96,7 @@ class CircuitGen1DA:
         synthesis = SYNTHESIS[synthesis]
 
         hamiltonian_norm = np.linalg.norm(hamiltonian)
-        H_scaled = hamiltonian / hamiltonian_norm
-        op = SparsePauliOp.from_operator(Operator(H_scaled))
-        #op = SparsePauliOp.from_operator(Operator(hamiltonian))
-        self.logger.info(f"Hamiltonian norm = {hamiltonian_norm:.2e}, rescaled evolution used.")
+        op = SparsePauliOp.from_operator(Operator(hamiltonian))
 
         qr = QuantumRegister(num_qubits)
         cr = ClassicalRegister(num_qubits)
@@ -131,12 +128,11 @@ class CircuitGen1DA:
         circuits = []
         for idx, time in enumerate(times):
             self.logger.info(f'Generating circuits for step: {idx+1} | {len(times)}.')
-            scaled_time = time * hamiltonian_norm
             if SIMPLE_CIRCUITS:
-                evo = PauliEvolutionGate(op, time=scaled_time, synthesis=synthesis,
+                evo = PauliEvolutionGate(op, time=time, synthesis=synthesis,
                                          label='TimeEvolution')
             else:
-                evo = PauliEvolutionGate(op, time=scaled_time, synthesis=synthesis,
+                evo = PauliEvolutionGate(op, time=time, synthesis=synthesis,
                                          label=f'exp(-i{time}H)')
             qc_evolution = qc.copy()
             qc_evolution.append(evo, qr)

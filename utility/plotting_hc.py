@@ -68,10 +68,6 @@ def plot_multi(data, idx, shots=None, colors=['black', 'red', 'blue', 'green', '
             solv_list.append(f'ODE Solver {apx}')
         elif d['settings']['solver'] == 'exp':
             solv_list.append(f'Matrix Exponential Solver {apx}')
-        elif d['settings']['solver'] == 'emb':
-            solv_list.append(f'Embedding Solver {apx}')
-        elif d['settings']['solver'] == 'embQ'and not d['settings']['backend']['fake']:
-            solv_list.append(f'Embedding Quantum Solver {apx}')
         elif d['settings']['solver'] == 'imaginary':
             solv_list.append(f'Imaginary Solver {apx}')
         elif d['settings']['solver'] == 'imaginaryQ'and not d['settings']['backend']['fake']:

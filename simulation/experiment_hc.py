@@ -40,8 +40,6 @@ from utility.plotting_hc import plot_multi, plot_medium, plot_initial, plot_erro
 from .solvers_hc import Solver1DODE, \
         Solver1DEXP, \
         Solver1DImaginary, \
-        Solver1DEmb,\
-        Solver1DEmbQ,\
         Solver1DSplit,\
         Solver1DSplitQ
 
@@ -139,10 +137,6 @@ class ForwardExperiment1D:
                 self.solvers.append(Solver1DImaginary(self.base_data, self.logger, **kwargs))
             case 'imaginaryQ':
                 self.solvers.append(Solver1DImaginaryQ(self.base_data, self.logger, **kwargs))
-            case 'emb':
-                self.solvers.append(Solver1DEmb(self.base_data, self.logger, **kwargs))
-            case 'embQ':
-                self.solvers.append(Solver1DEmbQ(self.base_data, self.logger, **kwargs))
             case 'split':
                 self.solvers.append(Solver1DSplit(self.base_data, self.logger, **kwargs))
             case 'splitQ':
