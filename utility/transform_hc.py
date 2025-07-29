@@ -81,7 +81,7 @@ class FDTransform1DA:
         self.h_emb = self.get_h_emb(scale(self.u, cols=1), self.get_z(self.nx+1))
 
         self.h = 1j*self.l
-        self.h_herm = 0.5*(self.h + self.h.conj().T)
+        self.h_herm = 0.5*(self.h + self.h.conj().T) + self.get_i(self.nx)*1.0e-4
         self.h_non_herm = 0.5*(self.h - self.h.conj().T)
 
     def get_z(self, length: int) -> np.ndarray:

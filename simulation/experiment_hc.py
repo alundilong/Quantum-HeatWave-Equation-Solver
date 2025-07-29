@@ -40,6 +40,7 @@ from utility.plotting_hc import plot_multi, plot_medium, plot_initial, plot_erro
 from .solvers_hc import Solver1DODE, \
         Solver1DEXP, \
         Solver1DImaginary, \
+        Solver1DImaginaryQ, \
         Solver1DSplit,\
         Solver1DSplitQ
 

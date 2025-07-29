@@ -281,7 +281,7 @@ class Solver1DImaginary(Solver1D):
 
     def __init__(self, base_data: object, logger: object, **kwargs) -> None:
         super().__init__(base_data, logger, **kwargs)
-        self.st = StateProcessor(self.kwargs['nx'], self.kwargs['nt'], shift=1)
+        self.st = StateProcessor(self.kwargs['nx'], self.kwargs['nt'], shift=0)
         self.st.set_u(self.kwargs['u'], 0)
         self.st.set_v(self.kwargs['v'], 0)
         self.st.forward_state(0, self.tf.i)
@@ -296,11 +296,19 @@ class Solver1DImaginary(Solver1D):
         """
         self.logger.info('Imaginary Solving.')
         initial_state = self.st.get_state(0)
-        self.st.states = np.array([
-            np.real(scipy.linalg.expm(time * -1j * self.tf.m) @ initial_state)
+        n = len(initial_state)//2
+        self.st.states[:,:n] = np.array([
+            np.real(scipy.linalg.expm(time * -1j * self.tf.l) @ initial_state[:n])
             for time in self.times])
         self.logger.info(f'Shape of st.states: {self.st.states.shape}')
         self.logger.info('Imaginary solved.')
+
+        phi_imag = self.st.states.copy()
+        # reconstruct solution to real domain (it->t)
+        self.st.states[:,:n] = np.array([
+            np.real(scipy.linalg.expm(time * self.tf.l) @ phi_imag[0, :n])
+            for time in self.times
+        ])
 
         _ = [self.st.inverse_state(i, self.tf.i)
          for i in range(len(self.times))]
@@ -323,33 +331,79 @@ class Solver1DImaginaryQ(Solver1D):
 
     def __init__(self, base_data: object, logger: object, **kwargs) -> None:
         super().__init__(base_data, logger, **kwargs)
-        self.st = StateProcessor(self.kwargs['nx'], self.kwargs['nt'], shift=1)
+        self.st = StateProcessor(self.kwargs['nx'], self.kwargs['nt'], shift=0)
         self.st.set_u(self.kwargs['u'], 0)
         self.st.set_v(self.kwargs['v'], 0)
-        self.factor = 1.0
-        self.st.forward_state(0, self.tf.t @ self.tf.sqrt_m, factor=self.factor)
+        self.st.forward_state(0, self.tf.i)
         self.logger.info('Initial state forward-transformed.')
 
     def run(self) -> Dict[str, Any]:
         """
-        Runs the matrix exponential solver and processes the results.
+        Runs the local solver, including quantum circuit generation, execution, and tomography.
 
         Returns:
             Dict[str, Any]: A dictionary containing the field data and other results.
         """
-        self.logger.info('Solving matrix exponential.')
-        initial_state = self.st.get_state(0,factor = self.factor)
-        N = len(initial_state)
-        Psi_0 = np.zeros(2 * N, dtype=complex)
-        Psi_0[:N] = initial_state  # Upper half is physical state
-        self.st.states = np.array([
-            np.real(scipy.linalg.expm(time * -1j * self.tf.h_embed) @ Psi_0)
-            for time in self.times])[:,:N]
-        self.logger.info(f'Shape of st.states: {self.st.states.shape}')
-        self.logger.info('Matrix exponential solved.')
 
-        _ = [self.st.inverse_state(i, self.tf.inv_sqrt_m @ self.tf.inv_t, factor=self.factor)
-         for i in range(len(self.times))]
+        self.logger.info('Initializing backend.')
+        backend = LocalBackend(self.logger,
+                               backend=None,
+                               fake=self.kwargs['backend']['fake'],
+                               method=self.kwargs['backend']['method'],
+                               seed=self.kwargs['backend']['seed'],
+                               shots=self.kwargs['backend']['shots'],
+                               optimization=self.kwargs['backend']['optimization'],
+                               resilience=self.kwargs['backend']['resilience'],
+                               local_transpilation = self.kwargs['backend']['local_transpilation'],
+                               max_parallel_experiments=0)
+        sampler, _ = backend.get_sampler()
+        self.logger.info('Backend initialized.')
+
+        initial_state = self.st.get_state(0)
+        n = len(initial_state)//2
+
+        self.logger.info(f'initial_state Norm: {np.linalg.norm(initial_state[:n]):.2e}')
+
+        self.logger.info('Generating circuits.')
+        circuit_gen = CircuitGen1DA(self.logger, backend.fake_backend)
+        self.circuit_groups = circuit_gen.tomography_circuits(
+            initial_state[:n],
+            self.tf.l,
+            self.times[1:],
+            self.kwargs['backend']['synthesis'],
+            self.kwargs['backend']['batch_size'],
+            self.kwargs['backend']['optimization'],
+            self.kwargs['backend']['seed'],
+            self.kwargs['backend']['local_transpilation'])
+
+        self.logger.info('Submitting jobs to backend.')
+
+        jobs = [sampler.run(circuits) for circuits in self.circuit_groups]
+        self.logger.info('Jobs submitted.')
+        _wait_for_completion(jobs, self.logger)
+        result_groups = [job.result() for job in jobs]
+        self.logger.info('Jobs completed.')
+
+        self.logger.info('Running tomography.')
+        tomo = TomographyReal(self.logger, self.kwargs['backend']['fitter'])
+        observables = list(product("ZX", repeat=int(np.log2(self.tf.l.shape[0]))))
+        self.logger.debug(f'Observables: {observables}')
+        states_raw = tomo.run_tomography(result_groups, observables, self.times[1:])
+        self.logger.info('Tomography completed.')
+
+        self.st.states[:,:n] = np.real(parallel_transport(states_raw, initial_state[:n]))
+
+        # reconstruct solution to real domain (it->t)
+        phi_imag = self.st.states.copy()
+        # reconstruct solution to real domain (it->t)
+        self.st.states[:,:n] = np.array([
+            np.real(scipy.linalg.expm(time * self.tf.l) @ phi_imag[0, :n])
+            for time in self.times
+        ])
+
+        self.logger.info('State polarization corrected.')
+        _ = [self.st.inverse_state(i, self.tf.i)
+         for i in range(1, len(self.times))]
         self.logger.info('States inverse-transformed.')
 
         self.data['field'] = self.st.get_dict()
@@ -446,7 +500,8 @@ class Solver1DSplitQ(Solver1D):
         initial_state = self.st.get_state(0)
         n = len(initial_state)//2
 
-        self.logger.info(f'initial_state Norm: {np.linalg.norm(initial_state):.2e}')
+        self.logger.info(f'initial_state Norm: {np.linalg.norm(initial_state[:n]):.2e}')
+        print(self.tf.h_herm)
 
         self.logger.info('Generating circuits.')
         circuit_gen = CircuitGen1DA(self.logger, backend.fake_backend)
@@ -461,6 +516,7 @@ class Solver1DSplitQ(Solver1D):
             self.kwargs['backend']['local_transpilation'])
 
         self.logger.info('Submitting jobs to backend.')
+
         jobs = [sampler.run(circuits) for circuits in self.circuit_groups]
         self.logger.info('Jobs submitted.')
         _wait_for_completion(jobs, self.logger)
@@ -506,6 +562,7 @@ def _wait_for_completion(jobs: List[object], logger: object, sleep_time: float =
             logger.debug(f"Fatal error occurred: {[job.status() for job in jobs]}")
             raise RuntimeError('Runtime error in simulating the quantum circuit.\
                 This might be a problem of your qiskit installation.')
+
         completed = [job.status().name == 'DONE' for job in jobs]
         logger.info(f"Jobs completed: {sum(completed)} | {len(jobs)}")
         all_completed = all(completed)
