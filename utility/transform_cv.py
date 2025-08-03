@@ -54,7 +54,7 @@ class FDTransform1DA:
     """
 
     def __init__(self, alpha: np.ndarray, tau: np.ndarray, dx: float, nx: int,
-            order: int, bcs: dict, N: int = 16) -> None:
+            order: int, bcs: dict, N: int = 8) -> None:
         self.alpha = alpha
         self.tau = tau
         self.dx = dx

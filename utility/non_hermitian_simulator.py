@@ -763,8 +763,8 @@ class NaimarkDilationSimulator:
 class WarpingPhaseTransformerSimulator:
     def __init__(self, A: np.ndarray, N: int = 16):
         """
-        Simulate non-Hermitian dynamics using true Naimark dilation for normal matrices.
-
+        Simulate dynamics of general linear PDEs (including non-Hermitian and non-normal)
+        using the Schrödingerisation method via warped phase transformation.
         A : np.ndarray
             Input square matrix (real or complex), not assumed Hermitian.
         N : int
@@ -810,52 +810,49 @@ class WarpingPhaseTransformerSimulator:
         H_bar = 0.5j * (A_dag - A)
     
         # Fourier mode grid
-        eta_vals = (2 * np.pi / L) * (np.arange(N) - N // 2)
+        eta_vals = 2 * np.pi * np.fft.fftfreq(N, d=L / N)
     
         # Build block diagonal Hamiltonian
         H_blocks = [eta * H + H_bar for eta in eta_vals]
         H_block = block_diag(*H_blocks)
     
         return H_block, eta_vals
-    
+
     def reconstruct_original_solution(self, w_t: np.ndarray):
         """
         Reconstruct the original solution u(t) from the Schrödingerised solution w(t)
-        using inverse Fourier transform along the p-domain.
+        using inverse Fourier transform and projection over p > 0.
     
         Parameters:
             w_t : np.ndarray
-                Flattened solution vector of shape (N*d,), where N is number of Fourier modes
-                and d is the size of the original vector u(t).
+                Flattened solution vector of shape (N*d,)
     
         Returns:
             u_t : np.ndarray
                 Reconstructed solution vector u(t) of shape (d,)
         """
         N = self.N
-        positive_only = self.positive_only
-
         d = w_t.size // N
-        w_t_matrix = w_t.reshape((N, d))  # shape: (N, d)
+        L = self.L
     
-        # Inverse FFT over the Fourier (p) axis
+        w_t_matrix = w_t.reshape((N, d))  # shape: (N, d)
         v_t_p = np.fft.ifft(w_t_matrix, axis=0)
     
-        if positive_only:
-            # Keep only p > 0 (second half of array, assuming symmetric FFT)
-            p_positive_indices = np.arange(N // 2, N)
+        if self.positive_only:
+            p_freqs = np.fft.fftfreq(N, d=L / N)
+            p_positive_indices = np.where(p_freqs > 0)[0]
             v_t_p = v_t_p[p_positive_indices, :]
     
-        # Integrate (sum) over the p-domain to recover u(t)
-        u_t = np.sum(v_t_p, axis=0).real  # discard any numerical imaginary part
-    
+        dp = L / N
+        u_t = np.sum(v_t_p, axis=0).real * dp
         return u_t
 
     def simulate(self, psi0: np.ndarray, times: np.ndarray):
         H_block = self.H_block
         eta = self.eta
         N = self.N
-        w0 = np.tile(psi0, N).astype(complex)
+        g_eta = 2 / (1 + eta**2)
+        w0 = (g_eta[:, None] * psi0[None, :]).reshape(N * psi0.size)
 
         solutions = []
         for t in times:
