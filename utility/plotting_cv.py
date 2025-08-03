@@ -82,6 +82,8 @@ def plot_multi(data, idx, shots=None, colors=['black', 'red', 'blue', 'green', '
             solv_list.append(f'Krylov Solver {apx}')
         elif d['settings']['solver'] == 'krylovQ':
             solv_list.append(f'Krylov Quantum Solver {apx}')
+        elif d['settings']['solver'] == 'warp':
+            solv_list.append(f'Warp Solver {apx}')
         elif d['settings']['solver'] == 'lcu':
             solv_list.append(f'LCU Solver {apx}')
         elif d['settings']['solver'] == 'lindblad':

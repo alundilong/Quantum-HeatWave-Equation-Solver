@@ -34,7 +34,8 @@ from utility.non_hermitian_simulator import LindbladFromNonHermitian,\
         LCU_NonHermitianSimulator,\
         HermitianDilationSimulator,\
         KrylovNonHermitianSimulator,\
-        KrylovQuantumSimulator
+        KrylovQuantumSimulator,\
+        WarpingPhaseTransformerSimulator
 
 # -------- CONSTANTS --------
 FORWARD_FD_COEFF: Dict[int, List[float]] = {
@@ -53,7 +54,7 @@ class FDTransform1DA:
     """
 
     def __init__(self, alpha: np.ndarray, tau: np.ndarray, dx: float, nx: int,
-                 order: int, bcs: dict) -> None:
+            order: int, bcs: dict, N: int = 16) -> None:
         self.alpha = alpha
         self.tau = tau
         self.dx = dx
@@ -103,6 +104,8 @@ class FDTransform1DA:
 
         self.krylovQ = KrylovQuantumSimulator(self.h_tilde)
 
+        self.warpingPhaseTransform = WarpingPhaseTransformerSimulator(self.h_tilde, N=N)
+
     def simulate_lindblad(self, psi0, time_list):
         """Simulate the Lindblad dynamics with optional initial state and time points."""
         return self.solver.simulate(psi0,t_span=time_list)
@@ -119,6 +122,9 @@ class FDTransform1DA:
 
     def simulate_krylovQ(self, psi0, time_list):
         return self.krylovQ.simulate_quantum(psi0, time_list)
+
+    def simulate_warping_phase_transform(self, psi0, time_list):
+        return self.warpingPhaseTransform.simulate(psi0, time_list)
 
     def get_z(self, length: int) -> np.ndarray:
         """

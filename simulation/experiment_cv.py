@@ -48,6 +48,7 @@ from .solvers_cv import Solver1DODE, \
         Solver1DDialation,\
         Solver1DLindblad, \
         Solver1DLCU, \
+        Solver1DWarp, \
         Solver1DLocal, \
         Solver1DCloud
 
@@ -88,7 +89,7 @@ class ForwardExperiment1D:
         
         Args:
             solver (str): Solver type. One of 'ode', 'exp', 'exp_emb', 'exp_emb2', 'split',
-            'splitQ', 'dialation', 'krylov', 'krylovQ', 'lindblad', 'lcu', 'local', 'cloud'.
+            'splitQ', 'dialation', 'krylov', 'krylovQ', 'lindblad', 'warp', 'lcu', 'local', 'cloud'.
             dx (float): Spatial step size.
             nx (int): Number of spatial grid points.
             dt (float): Temporal step size.
@@ -104,7 +105,7 @@ class ForwardExperiment1D:
         self.logger.info(f'Adding solver {len(self.solvers)+1}: {solver}')
 
         # Check solver
-        assert solver in ['ode', 'exp', 'exp_emb', 'exp_emb2', 'split', 'splitQ',\
+        assert solver in ['ode', 'exp', 'exp_emb', 'exp_emb2', 'split', 'splitQ', 'warp', \
                 'dialation', 'krylov', 'krylovQ', 'lindblad', \
                 'lcu', 'local', 'cloud'], 'Solver not implemented.'
 
@@ -155,6 +156,8 @@ class ForwardExperiment1D:
                 self.solvers.append(Solver1DKrylovQ(self.base_data, self.logger, **kwargs))
             case 'lindblad':
                 self.solvers.append(Solver1DLindblad(self.base_data, self.logger, **kwargs))
+            case 'warp':
+                self.solvers.append(Solver1DWarp(self.base_data, self.logger, **kwargs))
             case 'lcu':
                 self.solvers.append(Solver1DLCU(self.base_data, self.logger, **kwargs))
             case 'local':

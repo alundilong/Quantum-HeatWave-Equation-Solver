@@ -2,6 +2,7 @@ import numpy as np
 import warnings
 from scipy.linalg import sqrtm, expm, norm
 from scipy.special import jv  # Bessel functions for Fourier coefficients
+from scipy.linalg import block_diag
 
 from qiskit_dynamics.solvers import Solver
 from qiskit.quantum_info import Operator
@@ -758,3 +759,110 @@ class NaimarkDilationSimulator:
         """
         psi_t_exact = [expm(-1j * self.H_q * t) @ psi0 for t in times]
         return np.array(psi_t_exact)
+
+class WarpingPhaseTransformerSimulator:
+    def __init__(self, A: np.ndarray, N: int = 16):
+        """
+        Simulate non-Hermitian dynamics using true Naimark dilation for normal matrices.
+
+        A : np.ndarray
+            Input square matrix (real or complex), not assumed Hermitian.
+        N : int
+            Number of Fourier modes in the auxiliary variable domain (should be even).
+        L : float
+            Length of the p-domain for Fourier dual variable η.
+        positive_only : bool
+            Whether to project only onto the p > 0 subspace (default True).
+        """
+        self.A = A
+        self.N = N
+        self.L = 2 * np.pi
+        self.positive_only = True
+        self.H_block, self.eta = self.schrodingerise_operator_block_hamiltonian()
+
+    def schrodingerise_operator_block_hamiltonian(self):
+        """
+        Construct the block-diagonal Hermitian Hamiltonian for Schrödingerisation
+        from a possibly non-Hermitian matrix A.
+    
+        Returns:
+            H_block : np.ndarray
+                Block-diagonal Hermitian matrix of shape (N*d, N*d),
+                where d is the dimension of A.
+            eta_vals : np.ndarray
+                Array of η_j values used to construct each block.
+        """
+        A = self.A
+        N = self.N
+        L = self.L
+        if not isinstance(A, np.ndarray):
+            raise TypeError("Input A must be a NumPy ndarray.")
+        if A.shape[0] != A.shape[1]:
+            raise ValueError("Matrix A must be square.")
+        if N % 2 != 0:
+            raise ValueError("N must be even for symmetric discretization.")
+    
+        d = A.shape[0]
+        A_dag = A.conj().T
+    
+        # Hermitian and anti-Hermitian parts
+        H = 0.5 * (A + A_dag)
+        H_bar = 0.5j * (A_dag - A)
+    
+        # Fourier mode grid
+        eta_vals = (2 * np.pi / L) * (np.arange(N) - N // 2)
+    
+        # Build block diagonal Hamiltonian
+        H_blocks = [eta * H + H_bar for eta in eta_vals]
+        H_block = block_diag(*H_blocks)
+    
+        return H_block, eta_vals
+    
+    def reconstruct_original_solution(self, w_t: np.ndarray):
+        """
+        Reconstruct the original solution u(t) from the Schrödingerised solution w(t)
+        using inverse Fourier transform along the p-domain.
+    
+        Parameters:
+            w_t : np.ndarray
+                Flattened solution vector of shape (N*d,), where N is number of Fourier modes
+                and d is the size of the original vector u(t).
+    
+        Returns:
+            u_t : np.ndarray
+                Reconstructed solution vector u(t) of shape (d,)
+        """
+        N = self.N
+        positive_only = self.positive_only
+
+        d = w_t.size // N
+        w_t_matrix = w_t.reshape((N, d))  # shape: (N, d)
+    
+        # Inverse FFT over the Fourier (p) axis
+        v_t_p = np.fft.ifft(w_t_matrix, axis=0)
+    
+        if positive_only:
+            # Keep only p > 0 (second half of array, assuming symmetric FFT)
+            p_positive_indices = np.arange(N // 2, N)
+            v_t_p = v_t_p[p_positive_indices, :]
+    
+        # Integrate (sum) over the p-domain to recover u(t)
+        u_t = np.sum(v_t_p, axis=0).real  # discard any numerical imaginary part
+    
+        return u_t
+
+    def simulate(self, psi0: np.ndarray, times: np.ndarray):
+        H_block = self.H_block
+        eta = self.eta
+        N = self.N
+        w0 = np.tile(psi0, N).astype(complex)
+
+        solutions = []
+        for t in times:
+            U_t = expm(-1j * H_block * t)
+            w_t = U_t @ w0
+            u_t = self.reconstruct_original_solution(w_t)
+            solutions.append(u_t)
+
+        result = np.array(solutions)
+        return result
